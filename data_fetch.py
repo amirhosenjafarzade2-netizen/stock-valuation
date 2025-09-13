@@ -50,7 +50,7 @@ def fetch_stock_data(ticker):
         data['beta'] = max(min(data['beta'], 10.0), 0.0)
         data['book_value'] = max(min(data['book_value'], 10000.0), 0.01)
         data['roe'] = max(min(data['roe'], 100.0), -100.0)
-        data['analyst_growth'] = max(min(data['analyst_growth'], 50.0), 0.0)
+        data['analyst_growth'] = max(min(data['analyst_growth', 50.0), 0.0)
         data['historical_pe'] = 15.0
         data['market_cap'] = max(min(data['market_cap'], 1e12), 0.0)
         
