@@ -17,7 +17,7 @@ def calculate_valuation(inputs):
     elif model == "Lynch Method":
         results = lynch_method(inputs)
     elif model == "Discounted Cash Flow (DCF)":
-        results = two_stage_dcf(inputs)  # Use two-stage for better accuracy
+        results = two_stage_dcf(inputs)
     elif model == "Dividend Discount Model (DDM)":
         results = ddm_valuation(inputs)
     elif model == "Two-Stage DCF":
@@ -33,16 +33,18 @@ def calculate_valuation(inputs):
     
     # Common metrics
     results['current_price'] = current_price
-    results['intrinsic_value'] = max(results.get('intrinsic_value', 0), 0) * (1 - mos / 100)  # Ensure non-negative
+    results['intrinsic_value'] = max(results.get('intrinsic_value', 0), 0) * (1 - mos / 100)
     results['safe_buy_price'] = results['intrinsic_value'] * (1 - mos / 100)
     results['undervaluation'] = ((results['intrinsic_value'] - current_price) / current_price) * 100 if current_price > 0 else 0
     results['verdict'] = get_verdict(results['undervaluation'])
-    results['score'] = calculate_weighted_score(results, inputs)  # Updated weighted score
     
-    # Model-specific metrics
+    # Model-specific metrics (moved before weighted score to fix KeyError)
     results['peg_ratio'] = calculate_peg(inputs)
     results['pe_delta'] = (inputs['forward_eps'] * inputs['historical_pe'] - current_price) / current_price * 100 if inputs['forward_eps'] > 0 else 0
     results['eps_cagr'] = calculate_eps_cagr(inputs)
+    
+    # Calculate weighted score after setting all metrics
+    results['score'] = calculate_weighted_score(results, inputs)  # Moved after peg_ratio, pe_delta, eps_cagr
     
     # Calculate all model values for comparison
     all_models = {
@@ -85,16 +87,16 @@ def get_verdict(undervaluation):
 
 def calculate_peg(inputs):
     """Calculate PEG ratio: P/E divided by growth rate."""
-    pe = inputs['current_price'] / inputs['current_eps'] if inputs['current_eps'] != 0 else 0  # NEW: Changed > to !=
+    pe = inputs['current_price'] / inputs['current_eps'] if inputs['current_eps'] != 0 else 0
     growth = inputs['analyst_growth']
-    return pe / growth if growth > 0.01 else 0  # NEW: Added small epsilon to avoid division by zero
+    return pe / growth if growth > 0.01 else 0
 
 def calculate_eps_cagr(inputs):
     """Calculate required EPS CAGR."""
     years = inputs['years_high_growth']
     current_eps = inputs['current_eps']
     target_eps = inputs['forward_eps'] * (1 + inputs['analyst_growth']/100)**years
-    if current_eps != 0 and years > 0:  # NEW: Changed > to !=
+    if current_eps != 0 and years > 0:
         return ((target_eps / current_eps) ** (1/years) - 1) * 100
     return 0
 
@@ -102,72 +104,57 @@ def calculate_weighted_score(results, inputs):
     """Weighted score: 30% undervaluation, 30% PEG (inverted), 40% P/E delta."""
     undervalue_weight = 0.3 * max(0, results['undervaluation'])
     peg_weight = 0.3 * (1 / (results['peg_ratio'] + 1)) * 100  # Invert PEG (lower better)
-    pe_delta_weight = 0.4 * max(0, results['pe_delta'])  # NEW: Use results['pe_delta'] directly
+    pe_delta_weight = 0.4 * max(0, results['pe_delta'])
     return min(100, max(0, undervalue_weight + peg_weight + pe_delta_weight))
 
-# Core Valuation (Excel) - P/E based projection
 def core_valuation(inputs):
     years = inputs['years_high_growth']
     current_eps = inputs['current_eps']
     growth_rate = inputs['analyst_growth'] / 100
     exit_pe = inputs['exit_pe']
     
-    # Project future EPS
     future_eps = current_eps * (1 + growth_rate) ** years
-    
-    # Terminal value
     terminal_value = future_eps * exit_pe
-    
-    # Discount back (simplified, assuming constant discount rate)
     discount_rate = inputs['desired_return'] / 100
     pv_terminal = terminal_value / (1 + discount_rate) ** years
     
-    intrinsic_value = pv_terminal  # Simplified core model
+    intrinsic_value = pv_terminal
     return {'intrinsic_value': intrinsic_value}
 
-# Lynch Method - Earnings growth focused (adjusted fair P/E)
 def lynch_method(inputs):
     current_eps = inputs['current_eps']
     growth_rate = inputs['analyst_growth']
     pe = inputs['historical_pe']
     
-    # Lynch fair P/E ≈ growth rate * 1.5 (PEG adjustment for better realism)
     fair_pe = growth_rate * 1.5
     intrinsic_value = current_eps * fair_pe
     return {'intrinsic_value': intrinsic_value}
 
-# DCF Valuation - Now uses two-stage for consistency
 def dcf_valuation(inputs):
     return two_stage_dcf(inputs)
 
-# DDM - Gordon Growth Model (with better error handling)
 def ddm_valuation(inputs):
     dividend = inputs['dividend_per_share']
     growth = inputs['dividend_growth'] / 100
     cost_equity = inputs['desired_return'] / 100
     
-    if dividend <= 0:
-        return {'intrinsic_value': 0}  # No dividends
-    if cost_equity <= growth:
-        return {'intrinsic_value': 0}  # NEW: Changed to return 0 for invalid case
+    if dividend <= 0 or cost_equity <= growth:
+        return {'intrinsic_value': 0}
     intrinsic_value = dividend * (1 + growth) / (cost_equity - growth)
     return {'intrinsic_value': max(intrinsic_value, 0)}
 
-# Two-Stage DCF (unchanged, but used more)
 def two_stage_dcf(inputs):
-    fcf = inputs['fcf'] or inputs['current_eps'] * (1 - inputs['tax_rate']/100)  # FCF proxy
+    fcf = inputs['fcf'] or inputs['current_eps'] * (1 - inputs['tax_rate']/100)
     high_growth = inputs['analyst_growth'] / 100
     stable_growth = inputs['stable_growth'] / 100
     wacc = inputs['wacc'] / 100
     years_high = inputs['years_high_growth']
     
-    # High growth period
     pv_high = 0
     for t in range(1, years_high + 1):
         fcf_t = fcf * (1 + high_growth) ** t
         pv_high += fcf_t / (1 + wacc) ** t
     
-    # Terminal value (safer denominator)
     if wacc > stable_growth:
         fcf_terminal = fcf * (1 + high_growth) ** years_high * (1 + stable_growth)
         terminal_value = fcf_terminal / (wacc - stable_growth)
@@ -178,15 +165,13 @@ def two_stage_dcf(inputs):
     intrinsic_value = pv_high + pv_terminal
     return {'intrinsic_value': max(intrinsic_value, 0)}
 
-# Residual Income (fixed terminal calculation)
 def residual_income(inputs):
     book_value = inputs['book_value']
-    roe = min(inputs['roe'] / 100, 1.0)  # Cap ROE at 100%
+    roe = min(inputs['roe'] / 100, 1.0)
     cost_equity = inputs['desired_return'] / 100
     growth = inputs['analyst_growth'] / 100
     years = inputs['years_high_growth']
     
-    # RI for high growth period
     pv_ri = 0
     current_earnings = book_value * roe
     for t in range(1, years + 1):
@@ -195,7 +180,6 @@ def residual_income(inputs):
         ri_t = earnings_t - book_t * cost_equity
         pv_ri += ri_t / (1 + cost_equity) ** t
     
-    # Fixed terminal RI: Perpetual growth on residual earnings
     if cost_equity > growth:
         terminal_ri = (current_earnings * (1 + growth) ** years - book_value * (1 + growth) ** years * cost_equity) * growth / (cost_equity - growth)
         pv_terminal = terminal_ri / (1 + cost_equity) ** years
@@ -205,22 +189,19 @@ def residual_income(inputs):
     intrinsic_value = book_value + pv_ri + pv_terminal
     return {'intrinsic_value': max(intrinsic_value, 0)}
 
-# Reverse DCF - Implied growth rate (capped to avoid negatives)
 def reverse_dcf(inputs):
     current_price = inputs['current_price']
     fcf = inputs['fcf'] or inputs['current_eps']
     wacc = inputs['wacc'] / 100
     years = inputs['years_high_growth']
     
-    # Solve for implied growth where PV = current price (binary search, capped)
     def pv_func(g):
-        g_rate = min(g / 100, wacc - 0.01)  # Cap growth < WACC -1%
+        g_rate = min(g / 100, wacc - 0.01)
         terminal = fcf * (1 + g_rate) / (wacc - g_rate) if wacc > g_rate else 0
         return terminal / (1 + wacc)
     
-    # Binary search for g
-    low, high = 0, 100  # NEW: Cap at 100% instead of 50%
-    for _ in range(50):  # Precision
+    low, high = 0, 100
+    for _ in range(50):
         mid = (low + high) / 2
         if pv_func(mid) < current_price:
             low = mid
@@ -228,17 +209,14 @@ def reverse_dcf(inputs):
             high = mid
     implied_growth = low
     
-    # Forward value using analyst growth (capped)
     intrinsic_value = pv_func(inputs['analyst_growth'])
     return {'intrinsic_value': max(intrinsic_value, 0), 'implied_growth': implied_growth}
 
-# Graham Intrinsic Value (unchanged)
 def graham_intrinsic_value(inputs):
     eps = inputs['current_eps']
     book_value = inputs['book_value']
     growth = inputs['analyst_growth']
     
-    # Graham formula: V = EPS * (8.5 + 2g) * 4.4 / Y (simplified, assuming Y=4.4)
     v = eps * (8.5 + 2 * growth) * 4.4 / 4.4
-    intrinsic_value = max(v, 0.67 * book_value)  # Take higher of earnings or asset value
+    intrinsic_value = max(v, 0.67 * book_value)
     return {'intrinsic_value': max(intrinsic_value, 0)}
