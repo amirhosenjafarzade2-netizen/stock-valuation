@@ -38,13 +38,13 @@ def calculate_valuation(inputs):
     results['undervaluation'] = ((results['intrinsic_value'] - current_price) / current_price) * 100 if current_price > 0 else 0
     results['verdict'] = get_verdict(results['undervaluation'])
     
-    # Model-specific metrics (moved before weighted score to fix KeyError)
+    # Model-specific metrics
     results['peg_ratio'] = calculate_peg(inputs)
     results['pe_delta'] = (inputs['forward_eps'] * inputs['historical_pe'] - current_price) / current_price * 100 if inputs['forward_eps'] > 0 else 0
     results['eps_cagr'] = calculate_eps_cagr(inputs)
     
     # Calculate weighted score after setting all metrics
-    results['score'] = calculate_weighted_score(results, inputs)  # Moved after peg_ratio, pe_delta, eps_cagr
+    results['score'] = calculate_weighted_score(results, inputs)
     
     # Calculate all model values for comparison
     all_models = {
@@ -103,7 +103,7 @@ def calculate_eps_cagr(inputs):
 def calculate_weighted_score(results, inputs):
     """Weighted score: 30% undervaluation, 30% PEG (inverted), 40% P/E delta."""
     undervalue_weight = 0.3 * max(0, results['undervaluation'])
-    peg_weight = 0.3 * (1 / (results['peg_ratio'] + 1)) * 100  # Invert PEG (lower better)
+    peg_weight = 0.3 * (1 / (results['peg_ratio'] + 1)) * 100
     pe_delta_weight = 0.4 * max(0, results['pe_delta'])
     return min(100, max(0, undervalue_weight + peg_weight + pe_delta_weight))
 
