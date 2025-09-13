@@ -32,7 +32,7 @@ def run_monte_carlo(inputs, num_runs=1000, growth_adj=10.0, wacc_adj=10.0):
         sim_inputs['wacc'] = wacc_variations[i]
         
         # Validate and calculate
-        if validate_sim_inputs(sim_inputs):  # Use utils.validate_inputs if imported
+        if validate_sim_inputs(sim_inputs, model):  # Pass model as argument
             sim_results = calculate_valuation(sim_inputs)
             intrinsic_values.append(sim_results.get('intrinsic_value', 0))
         else:
@@ -53,7 +53,7 @@ def run_monte_carlo(inputs, num_runs=1000, growth_adj=10.0, wacc_adj=10.0):
         'num_runs': num_runs
     }
 
-def validate_sim_inputs(inputs):
+def validate_sim_inputs(inputs, model):
     """
     Simplified validation for Monte Carlo runs (faster than full validation).
     """
