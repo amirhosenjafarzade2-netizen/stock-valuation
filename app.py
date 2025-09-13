@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import yfinance as yf  # For data fetching (stubbed for now)
-# Placeholder imports for other modules (to be implemented)
+# Placeholder imports for other modules
 from valuation_models import calculate_valuation
 from data_fetch import fetch_stock_data
 from visualizations import plot_heatmap, plot_monte_carlo, plot_model_comparison
@@ -13,9 +13,13 @@ from monte_carlo import run_monte_carlo
 # Set Streamlit page config
 st.set_page_config(page_title="Stock Valuation Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Initialize session state for portfolio
+# Initialize session state
 if 'portfolio' not in st.session_state:
     st.session_state.portfolio = pd.DataFrame(columns=['Ticker', 'Intrinsic Value', 'Undervaluation %', 'Verdict', 'Beta'])
+if 'data' not in st.session_state:
+    st.session_state.data = {}
+if 'results' not in st.session_state:
+    st.session_state.results = {}
 
 # Load custom CSS
 with open("styles.html") as f:
@@ -27,7 +31,7 @@ st.markdown("Analyze stocks using valuation models: Core, Lynch, DCF, DDM, Two-S
 st.markdown("*For informational purposes only. Not financial advice. Verify all inputs and calculations independently.*")
 
 # Theme toggle
-theme = st.checkbox("Dark Mode", value=False)
+theme = st.checkbox("Dark Mode", value=False, key="theme")
 if theme:
     st.markdown('<style>body {background-color: #1E1E1E; color: #FFFFFF;}</style>', unsafe_allow_html=True)
 else:
@@ -36,6 +40,19 @@ else:
 # Sidebar for inputs
 with st.sidebar:
     st.header("Input Parameters")
+    
+    # Model Descriptions
+    with st.expander("Model Descriptions"):
+        st.markdown("""
+        - **Core Valuation (Excel)**: Best for steady-growth sectors (consumer goods, industrials, healthcare).
+        - **Lynch Method**: Ideal for high-growth sectors (tech, biotech, consumer discretionary).
+        - **DCF**: Versatile, excels in capital-intensive sectors (tech, pharma, energy).
+        - **DDM**: Best for dividend-paying sectors (utilities, consumer staples, REITs, financials).
+        - **Two-Stage DCF**: Suited for transitional firms (tech, biotech) with high-to-stable growth.
+        - **Residual Income (RI)**: Best for asset-heavy sectors (financials, real estate, utilities).
+        - **Reverse DCF**: Useful across sectors, especially growth stocks (tech, healthcare).
+        - **Graham Intrinsic Value**: Best for value investing in undervalued stocks (any sector).
+        """)
     
     # Valuation Model Selection
     model = st.selectbox(
@@ -49,57 +66,58 @@ with st.sidebar:
     ticker = st.text_input("Ticker Symbol", help="Enter a valid ticker (e.g., AAPL) to fetch data or input manually.")
     if st.button("Fetch"):
         try:
-            data = fetch_stock_data(ticker)  # Placeholder call
+            data = fetch_stock_data(ticker)
             st.session_state.data = data
             st.success(f"Data fetched for {ticker}")
         except Exception as e:
             st.error(f"Error fetching data: {str(e)}. Enter manually.")
     
-    # Core Inputs
-    with st.expander("Core Inputs"):
-        desired_return = st.number_input("Desired Return/Cost of Equity (%)", min_value=0.0, max_value=50.0, value=10.0, help="Must be 0-50%")
-        years_high_growth = st.number_input("Years (High-Growth)", min_value=3, max_value=10, value=5, step=1, help="Must be 3-10 years")
-        current_price = st.number_input("Current Price", min_value=0.01, value=100.0, help="Must be positive")
-        current_eps = st.number_input("Current EPS (TTM)", value=5.0, help="Must be non-zero for Core/Lynch/RI/Graham. Leave blank for DCF with FCF.")
-        forward_eps = st.number_input("Forward EPS (Next Yr)", min_value=0.01, value=5.5, help="Must be positive for Core/Lynch")
-        historical_pe = st.number_input("Historical Avg P/E", min_value=0.01, value=15.0, help="Must be positive")
-        analyst_growth = st.number_input("Analyst Growth (5y, %)", min_value=0.0, max_value=50.0, value=10.0, help="Must be 0-50%")
-        exit_pe = st.number_input("Exit P/E", min_value=0.01, value=historical_pe, help="Must be positive. Defaults to Historical Avg P/E")
-        core_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=25.0, help="Must be 0-100%")
+    # Initialize inputs with fetched data or defaults
+    data = st.session_state.get('data', {})
+    desired_return = st.number_input("Desired Return/Cost of Equity (%)", min_value=0.0, max_value=50.0, value=data.get('desired_return', 10.0), help="Must be 0-50%")
+    years_high_growth = st.number_input("Years (High-Growth)", min_value=3, max_value=10, value=data.get('years_high_growth', 5), step=1, help="Must be 3-10 years")
+    current_price = st.number_input("Current Price", min_value=0.01, value=data.get('current_price', 100.0), help="Must be positive")
+    current_eps = st.number_input("Current EPS (TTM)", value=data.get('current_eps', 5.0), help="Must be non-zero for Core/Lynch/RI/Graham. Leave blank for DCF with FCF.")
+    forward_eps = st.number_input("Forward EPS (Next Yr)", min_value=0.01, value=data.get('forward_eps', 5.5), help="Must be positive for Core/Lynch")
+    historical_pe = st.number_input("Historical Avg P/E", min_value=0.01, value=data.get('historical_pe', 15.0), help="Must be positive")
+    analyst_growth = st.number_input("Analyst Growth (5y, %)", min_value=0.0, max_value=50.0, value=data.get('analyst_growth', 10.0), help="Must be 0-50%")
+    exit_pe = st.number_input("Exit P/E", min_value=0.01, value=data.get('exit_pe', historical_pe), help="Must be positive. Defaults to Historical Avg P/E")
+    core_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('core_mos', 25.0), help="Must be 0-100%")
     
     # Dividend Inputs
     with st.expander("Dividend Inputs"):
-        dividend_per_share = st.number_input("Current Dividend Per Share", min_value=0.0, value=1.0, help="Must be positive for DDM")
-        dividend_growth = st.number_input("Dividend Growth Rate (%)", min_value=0.0, max_value=50.0, value=5.0, help="Must be 0-50%. Default 5% if dividends present.")
-        dividend_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=25.0, help="Must be 0-100%")
+        dividend_per_share = st.number_input("Current Dividend Per Share", min_value=0.0, value=data.get('dividend_per_share', 1.0), help="Must be positive for DDM")
+        dividend_growth = st.number_input("Dividend Growth Rate (%)", min_value=0.0, max_value=50.0, value=data.get('dividend_growth', 5.0), help="Must be 0-50%. Default 5% if dividends present.")
+        dividend_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('dividend_mos', 25.0), help="Must be 0-100%")
     
     # DCF & Reverse DCF Inputs
     with st.expander("DCF & Reverse DCF Inputs"):
-        fcf = st.number_input("Free Cash Flow (FCF, optional)", value=0.0, help="Must be non-zero for DCF if no EPS")
-        stable_growth = st.number_input("Stable Growth Rate (%)", min_value=0.0, max_value=50.0, value=3.0, help="Must be 0-50% and < WACC")
-        tax_rate = st.number_input("Tax Rate (%)", min_value=0.0, max_value=100.0, value=25.0, help="Must be 0-100%")
-        wacc = st.number_input("WACC (%)", min_value=0.0, max_value=50.0, value=8.0, help="Must be 0-50% and > Stable Growth")
-        dcf_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=25.0, help="Must be 0-100%")
+        fcf = st.number_input("Free Cash Flow (FCF, optional)", value=data.get('fcf', 0.0), help="Must be non-zero for DCF if no EPS")
+        stable_growth = st.number_input("Stable Growth Rate (%)", min_value=0.0, max_value=50.0, value=data.get('stable_growth', 3.0), help="Must be 0-50% and < WACC")
+        tax_rate = st.number_input("Tax Rate (%)", min_value=0.0, max_value=100.0, value=data.get('tax_rate', 25.0), help="Must be 0-100%")
+        wacc = st.number_input("WACC (%)", min_value=0.0, max_value=50.0, value=data.get('wacc', 8.0), help="Must be 0-50% and > Stable Growth")
+        dcf_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('dcf_mos', 25.0), help="Must be 0-100%")
     
     # Residual Income Inputs
     with st.expander("Residual Income Inputs"):
-        book_value = st.number_input("Book Value Per Share", min_value=0.01, value=20.0, help="Must be positive for RI/Graham")
-        roe = st.number_input("ROE (%)", min_value=0.0, max_value=100.0, value=15.0, help="Must be 0-100%")
-        ri_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=25.0, help="Must be 0-100%")
+        book_value = st.number_input("Book Value Per Share", min_value=0.01, value=data.get('book_value', 20.0), help="Must be positive for RI/Graham")
+        roe = st.number_input("ROE (%)", min_value=0.0, max_value=100.0, value=data.get('roe', 15.0), help="Must be 0-100%")
+        ri_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('ri_mos', 25.0), help="Must be 0-100%")
+    
+    # Portfolio Beta Input
+    beta = st.number_input("Beta (for Portfolio)", min_value=0.0, value=data.get('beta', 1.0), help="Used for portfolio calculations")
     
     # Monte Carlo Settings
     with st.expander("Monte Carlo Settings"):
-        monte_carlo_runs = st.number_input("Number of Runs", min_value=100, max_value=2000, value=1000, step=100, help="100-2000 runs (lower for faster performance)")
-        growth_adj = st.number_input("Growth Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=10.0, help="0-50%")
-        wacc_adj = st.number_input("WACC Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=10.0, help="0-50%")
+        monte_carlo_runs = st.number_input("Number of Runs", min_value=100, max_value=2000, value=data.get('monte_carlo_runs', 1000), step=100, help="100-2000 runs (lower for faster performance)")
+        growth_adj = st.number_input("Growth Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=data.get('growth_adj', 10.0), help="0-50%")
+        wacc_adj = st.number_input("WACC Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=data.get('wacc_adj', 10.0), help="0-50%")
     
     # Action Buttons
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
-        calculate = st.button("Calculate")
-    with col2:
         add_to_portfolio = st.button("Add to Portfolio")
-    with col3:
+    with col2:
         export = st.button("Export Portfolio")
     download_report = st.button("Download Report")
 
@@ -108,24 +126,24 @@ col_left, col_right = st.columns([2, 3])
 
 with col_left:
     st.header("Valuation Dashboard")
-    if calculate:
-        # Validate inputs
-        inputs = {
-            'model': model, 'ticker': ticker, 'desired_return': desired_return, 'years_high_growth': years_high_growth,
-            'current_price': current_price, 'current_eps': current_eps, 'forward_eps': forward_eps,
-            'historical_pe': historical_pe, 'analyst_growth': analyst_growth, 'exit_pe': exit_pe,
-            'core_mos': core_mos, 'dividend_per_share': dividend_per_share, 'dividend_growth': dividend_growth,
-            'dividend_mos': dividend_mos, 'fcf': fcf, 'stable_growth': stable_growth, 'tax_rate': tax_rate,
-            'wacc': wacc, 'dcf_mos': dcf_mos, 'book_value': book_value, 'roe': roe, 'ri_mos': ri_mos
-        }
-        if validate_inputs(inputs):  # Placeholder validation
-            results = calculate_valuation(inputs)  # Placeholder call
-            st.session_state.results = results
-        else:
-            st.error("Invalid inputs. Check requirements.")
+    # Reactive calculations
+    inputs = {
+        'model': model, 'ticker': ticker, 'desired_return': desired_return, 'years_high_growth': years_high_growth,
+        'current_price': current_price, 'current_eps': current_eps, 'forward_eps': forward_eps,
+        'historical_pe': historical_pe, 'analyst_growth': analyst_growth, 'exit_pe': exit_pe,
+        'core_mos': core_mos, 'dividend_per_share': dividend_per_share, 'dividend_growth': dividend_growth,
+        'dividend_mos': dividend_mos, 'fcf': fcf, 'stable_growth': stable_growth, 'tax_rate': tax_rate,
+        'wacc': wacc, 'dcf_mos': dcf_mos, 'book_value': book_value, 'roe': roe, 'ri_mos': ri_mos,
+        'beta': beta
+    }
+    if validate_inputs(inputs):  # From utils.py
+        results = calculate_valuation(inputs)  # From valuation_models.py
+        st.session_state.results = results
+    else:
+        st.error("Invalid inputs. Check requirements.")
+        results = {}
     
-    # Display results (stubbed)
-    results = st.session_state.get('results', {})
+    # Display results
     st.metric("Model", model)
     st.metric("Current Price", f"${results.get('current_price', current_price):.2f}")
     st.metric("Intrinsic Value (Today)", f"${results.get('intrinsic_value', 0):.2f}")
@@ -146,9 +164,9 @@ with col_left:
 
 with col_right:
     st.header("Portfolio Overview")
-    beta = st.session_state.portfolio['Beta'].mean() if not st.session_state.portfolio.empty else 0
-    expected_return = beta * 8.0  # Simplified CAPM (risk-free rate + beta * market return)
-    st.metric("Portfolio Beta", f"{beta:.2f}")
+    portfolio_beta = st.session_state.portfolio['Beta'].mean() if not st.session_state.portfolio.empty else 0
+    expected_return = portfolio_beta * 8.0  # Simplified CAPM
+    st.metric("Portfolio Beta", f"{portfolio_beta:.2f}")
     st.metric("Portfolio Expected Return", f"{expected_return:.2f}%")
     
     if add_to_portfolio and 'results' in st.session_state:
@@ -157,7 +175,7 @@ with col_right:
             'Intrinsic Value': results.get('intrinsic_value', 0),
             'Undervaluation %': results.get('undervaluation', 0),
             'Verdict': results.get('verdict', '-'),
-            'Beta': st.session_state.get('data', {}).get('beta', 1.0)
+            'Beta': beta
         }])
         st.session_state.portfolio = pd.concat([st.session_state.portfolio, new_row], ignore_index=True)
     
@@ -167,30 +185,28 @@ with col_right:
         export_portfolio(st.session_state.portfolio, "portfolio.csv")
         st.success("Portfolio exported as portfolio.csv")
     
-    if download_report:
-        pdf_file = generate_pdf_report(st.session_state.get('results', {}), st.session_state.portfolio)
-        st.download_button("Download PDF Report", data=pdf_file, file_name=f"valuation_report_{ticker}_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf")
-
     st.header("Scenario Analysis")
+    with st.expander("Adjust Scenarios"):
+        bull_adj = st.slider("Bull Case Adjustment (%)", -50.0, 50.0, 20.0)
+        bear_adj = st.slider("Bear Case Adjustment (%)", -50.0, 50.0, -20.0)
     scenarios = pd.DataFrame({
         'Scenario': ['Base Case', 'Bull Case', 'Bear Case'],
-        'Intrinsic Value': [results.get('intrinsic_value', 0), results.get('intrinsic_value', 0) * 1.2, results.get('intrinsic_value', 0) * 0.8],
-        'Undervaluation %': [results.get('undervaluation', 0), results.get('undervaluation', 0) + 10, results.get('undervaluation', 0) - 10]
+        'Intrinsic Value': [results.get('intrinsic_value', 0), results.get('intrinsic_value', 0) * (1 + bull_adj/100), results.get('intrinsic_value', 0) * (1 + bear_adj/100)],
+        'Undervaluation %': [results.get('undervaluation', 0), results.get('undervaluation', 0) + bull_adj, results.get('undervaluation', 0) + bear_adj]
     })
     st.dataframe(scenarios, use_container_width=True)
 
     st.header("Sensitivity Analysis (Heatmap)")
-    heatmap = plot_heatmap(results.get('intrinsic_value', 0), wacc, analyst_growth)  # Placeholder
+    heatmap = plot_heatmap(results.get('intrinsic_value', 0), wacc, analyst_growth)
     st.plotly_chart(heatmap, use_container_width=True)
 
     st.header("Monte Carlo Simulation")
-    if calculate:
-        mc_results = run_monte_carlo(inputs, monte_carlo_runs, growth_adj, wacc_adj)  # Placeholder
-        st.metric("Average Intrinsic Value", f"${mc_results.get('avg_value', 0):.2f}")
-        st.metric("Std Dev", f"${mc_results.get('std_dev', 0):.2f}")
-        st.metric("Probability Undervalued (> Current Price)", f"{mc_results.get('prob_undervalued', 0):.2f}%")
-        mc_plot = plot_monte_carlo(mc_results)  # Placeholder
-        st.plotly_chart(mc_plot, use_container_width=True)
+    mc_results = run_monte_carlo(inputs, monte_carlo_runs, growth_adj, wacc_adj)
+    st.metric("Average Intrinsic Value", f"${mc_results.get('avg_value', 0):.2f}")
+    st.metric("Std Dev", f"${mc_results.get('std_dev', 0):.2f}")
+    st.metric("Probability Undervalued (> Current Price)", f"{mc_results.get('prob_undervalued', 0):.2f}%")
+    mc_plot = plot_monte_carlo(mc_results)
+    st.plotly_chart(mc_plot, use_container_width=True)
 
     st.header("Model Comparison")
     model_comp = pd.DataFrame({
@@ -201,7 +217,7 @@ with col_right:
             results.get('reverse_dcf_value', 0), results.get('graham_value', 0)
         ]
     })
-    comp_plot = plot_model_comparison(model_comp)  # Placeholder
+    comp_plot = plot_model_comparison(model_comp)
     st.plotly_chart(comp_plot, use_container_width=True)
 
 st.markdown("---")
