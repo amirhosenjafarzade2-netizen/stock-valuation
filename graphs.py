@@ -163,18 +163,29 @@ def display_fundamental_graphs(ticker):
     
     # Dividends
     if not dividends.empty:
+        # Aggregate dividends by year to show a trend
         dividends_df = dividends.reset_index()
         dividends_df.columns = ['Date', 'Dividend']
+        dividends_df['Date'] = pd.to_datetime(dividends_df['Date'])
+        # Group by year to sum dividends (annual dividends per share)
+        dividends_annual = dividends_df.groupby(dividends_df['Date'].dt.year)['Dividend'].sum().reset_index()
+        dividends_annual['Date'] = pd.to_datetime(dividends_annual['Date'], format='%Y')
         div_fig = plot_enhanced_line_chart(
-            dividends_df, 'Dividend', 'Dividend Per Share Over Time', 'Dividend ($)', cagr_periods=len(dividends_df)
+            dividends_annual,
+            'Dividend',
+            'Dividend Per Share Over Time',
+            'Dividend ($)',
+            cagr_periods=len(dividends_annual)
         )
         if div_fig:
             st.plotly_chart(div_fig, use_container_width=True)
+        else:
+            st.warning("Unable to plot Dividend Per Share graph due to insufficient data points.")
     
     # Price
     if not history.empty:
         price_fig = plot_enhanced_line_chart(
-            history, 'Close', 'Stock Price Over Time', 'Price ($)', cagr_periods=len(history)
+            history, 'Close', 'Stock Price Over Time', 'Price ($)', cagr_periods=len(history) / 252  # Approx trading days per year
         )
         if price_fig:
             st.plotly_chart(price_fig, use_container_width=True)
@@ -214,7 +225,7 @@ def display_fundamental_graphs(ticker):
             st.plotly_chart(val_fig, use_container_width=True)
     
     st.info("""
-    **Inspired by Qualtrim**: These charts aim to mimic Qualtrim's depth (e.g., 30+ years, buyback impacts). yfinance limits data to ~10 years. Upload Qualtrim screenshots for further refinement!
+    **Inspired by Qualtrim**: These charts aim to mimic Qualtrim's depth (e.g., 30+ years, buyback impacts). yfinance limits data to ~10 years for price history and ~4-5 years for financials. Upload Qualtrim screenshots for further refinement!
     """)
 
 if __name__ == "__main__":
