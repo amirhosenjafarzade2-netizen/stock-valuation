@@ -18,12 +18,12 @@ def fetch_stock_data(ticker):
         # Extract key metrics with more robust keys and fallbacks
         data = {
             'current_price': info.get('currentPrice', info.get('regularMarketPrice', info.get('previousClose', 0.0))),
-            'current_eps': info.get('trailingEps', info.get('trailingPE', 0.0) * info.get('currentPrice', 1.0) / info.get('trailingPE', 1.0) if info.get('trailingPE', 0) > 0 else 0.0),
+            'current_eps': info.get('trailingEps', info.get('trailingPE', 0.0) * info.get('currentPrice', 1.0) / max(info.get('trailingPE', 1.0), 0.01) if info.get('trailingPE', 0) > 0 else 0.0),
             'forward_eps': info.get('forwardEps', 0.0),
             'dividend_per_share': info.get('dividendRate', info.get('trailingAnnualDividendRate', 0.0)),
             'beta': info.get('beta', 1.0),
-            'book_value': info.get('bookValue', info.get('priceToBook', 1.0) * info.get('currentPrice', 1.0) / info.get('priceToBook', 1.0) if info.get('priceToBook', 0) > 0 else 20.0),
-            'roe': info.get('returnOnEquity', 0.0) * 100 if info.get('returnOnEquity', 0.0) else (info.get('netIncomeToCommon', 0.0) / info.get('totalStockholderEquity', 1.0)) * 100,
+            'book_value': info.get('bookValue', info.get('priceToBook', 1.0) * info.get('currentPrice', 1.0) / max(info.get('priceToBook', 0.01), 0.01) if info.get('priceToBook', 0) > 0 else 20.0),
+            'roe': info.get('returnOnEquity', 0.0) * 100 if info.get('returnOnEquity', 0.0) else (info.get('netIncomeToCommon', 0.0) / max(info.get('totalStockholderEquity', 1.0), 0.01)) * 100,
             'analyst_growth': info.get('earningsGrowth', 0.0) * 100,  # Convert to %
             'tax_rate': 25.0,  # Default
             'wacc': 8.0,  # Default
@@ -41,10 +41,15 @@ def fetch_stock_data(ticker):
             'wacc_adj': 10.0
         }
         
-        # Ensure positive values for key fields
-        data['current_price'] = max(data['current_price'], 0.01)
-        data['current_eps'] = max(data['current_eps'], 0.0)
-        data['forward_eps'] = max(data['forward_eps'], 0.01)
+        # Clamp values to reasonable ranges to prevent Streamlit errors
+        data['current_price'] = max(min(data['current_price'], 10000.0), 0.01)  # Cap at $10k
+        data['current_eps'] = max(min(data['current_eps'], 1000.0), 0.0)
+        data['forward_eps'] = max(min(data['forward_eps'], 1000.0), 0.01)
+        data['dividend_per_share'] = max(min(data['dividend_per_share'], 100.0), 0.0)
+        data['beta'] = max(min(data['beta'], 10.0), 0.0)
+        data['book_value'] = max(min(data['book_value'], 10000.0), 0.01)
+        data['roe'] = max(min(data['roe'], 100.0), 0.0)  # Clamp to 0-100%
+        data['analyst_growth'] = max(min(data['analyst_growth'], 50.0), 0.0)  # Clamp to 0-50%
         data['historical_pe'] = 15.0  # Will calculate below
         
         # Calculate historical average P/E more robustly
@@ -52,7 +57,7 @@ def fetch_stock_data(ticker):
             avg_close = history['Close'].mean()
             if data['current_eps'] > 0:
                 calculated_pe = avg_close / data['current_eps']
-                data['historical_pe'] = max(calculated_pe, 0.01)
+                data['historical_pe'] = max(min(calculated_pe, 100.0), 0.01)  # Clamp P/E to 0.01-100
             else:
                 data['historical_pe'] = 15.0
         else:
