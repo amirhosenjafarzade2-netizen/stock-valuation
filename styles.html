@@ -1,0 +1,124 @@
+<style>
+    /* Custom styles for Streamlit Stock Valuation Dashboard */
+    
+    /* Global theme overrides */
+    .stApp {
+        background-color: #f0f2f6;
+    }
+    
+    /* Dark mode styles */
+    [data-testid="stAppViewContainer"] {
+        background-color: #1E1E1E;
+        color: #FFFFFF;
+    }
+    
+    /* Sidebar styling */
+    .css-1d391kg {
+        background-color: #2E2E2E;
+        color: #FFFFFF;
+    }
+    
+    /* Input field styling */
+    .stTextInput > div > div > input {
+        border: 1px solid #4CAF50;
+        border-radius: 4px;
+        padding: 8px;
+    }
+    
+    .stNumberInput > div > div > input {
+        border: 1px solid #2196F3;
+        border-radius: 4px;
+        padding: 8px;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 16px;
+        font-weight: bold;
+        transition: background-color 0.3s;
+    }
+    
+    .stButton > button:hover {
+        background-color: #45a049;
+    }
+    
+    /* Metric styling */
+    .stMetric {
+        background-color: #E8F5E8;
+        padding: 10px;
+        border-radius: 6px;
+        border-left: 4px solid #4CAF50;
+        margin-bottom: 10px;
+    }
+    
+    /* Dataframe styling */
+    .dataframe {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .dataframe th {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+    }
+    
+    .dataframe td {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+    
+    /* Expander styling */
+    .stExpander {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 10px;
+    }
+    
+    /* Dark mode for tables and metrics */
+    .dark .stMetric {
+        background-color: #2E7D32;
+        color: white;
+    }
+    
+    .dark .dataframe th {
+        background-color: #388E3C;
+    }
+    
+    .dark .dataframe td {
+        background-color: #424242;
+        color: white;
+    }
+    
+    /* Hover effects for portfolio actions */
+    .portfolio-action:hover {
+        background-color: #f0f8ff;
+        cursor: pointer;
+    }
+    
+    /* Responsive design for mobile */
+    @media (max-width: 768px) {
+        .stMetric {
+            font-size: 14px;
+        }
+        
+        .stButton > button {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+    }
+    
+    /* Custom tooltip styling */
+    .stHelp {
+        background-color: #FFFFE0;
+        border: 1px solid #FFD700;
+        border-radius: 4px;
+        padding: 4px;
+        font-size: 12px;
+    }
+</style>
