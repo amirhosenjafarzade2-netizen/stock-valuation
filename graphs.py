@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
-from data_fetch import fetch_fundamental_data
+from data_fetch import fetch_fundamental_data  # Import to fetch cached data
 
 def plot_line_chart(df, y_col, title, y_label):
     """
@@ -11,7 +11,7 @@ def plot_line_chart(df, y_col, title, y_label):
     """
     if df.empty or y_col not in df.columns or df[y_col].isna().all():
         return None
-    df = df.sort_index()
+    df = df.sort_index()  # Ensure chronological order
     fig = px.line(df, x=df.index, y=y_col, title=title)
     fig.update_layout(
         yaxis_title=y_label,
@@ -47,7 +47,7 @@ def display_fundamental_graphs(ticker):
     # EPS Growth
     if 'BasicEPS' in income.columns or 'DilutedEPS' in income.columns:
         eps_col = 'BasicEPS' if 'BasicEPS' in income.columns else 'DilutedEPS'
-        eps_fig = plot_line_chart(income, eps_col, f'EPS ({eps_col}) Over Time', 'EPS ($)')
+        eps_fig = plot_line_chart(income, eps_col, f'EPS ({eps_col[:-3]}) Over Time', 'EPS ($)')
         if eps_fig:
             st.plotly_chart(eps_fig, use_container_width=True)
         else:
@@ -89,26 +89,30 @@ def display_fundamental_graphs(ticker):
             st.info("Debt data not available.")
     
     # Return on Equity
-    if 'NetIncome' in income.columns and 'TotalStockholderEquity' in balance.columns:
-        # Align indices if needed
-        common_index = income.index.intersection(balance.index)
-        if not common_index.empty:
-            roe_series = (income.loc[common_index, 'NetIncome'] / balance.loc[common_index, 'TotalStockholderEquity'] * 100).fillna(0).replace([float('inf'), -float('inf')], 0)
-            roe_df = pd.DataFrame({'ROE': roe_series}, index=common_index)
+    if 'NetIncomeCommonStockholders' in income.columns and 'TotalStockholderEquity' in balance.columns:
+        # Align dates for calculation
+        common_dates = income.index.intersection(balance.index)
+        if len(common_dates) > 0:
+            roe_df = pd.DataFrame(index=common_dates)
+            roe_df['Net Income'] = income.loc[common_dates, 'NetIncomeCommonStockholders']
+            roe_df['Equity'] = balance.loc[common_dates, 'TotalStockholderEquity']
+            roe_df['ROE'] = (roe_df['Net Income'] / roe_df['Equity'] * 100).fillna(0).replace([float('inf'), -float('inf')], 0)
             roe_fig = plot_line_chart(roe_df, 'ROE', 'Return on Equity Over Time', 'ROE (%)')
             if roe_fig:
                 st.plotly_chart(roe_fig, use_container_width=True)
+            else:
+                st.info("ROE data not available.")
         else:
-            st.info("ROE data not available due to index mismatch.")
+            st.info("ROE data not available due to date mismatch.")
     
     # P/E Ratio History
     if not history.empty and ('BasicEPS' in income.columns or 'DilutedEPS' in income.columns):
         eps_col = 'BasicEPS' if 'BasicEPS' in income.columns else 'DilutedEPS'
-        # Use latest EPS for forward fill
+        # Get latest EPS for approximation
         latest_eps = income[eps_col].dropna().iloc[-1] if not income[eps_col].dropna().empty else 1.0
-        history_pe = history.copy()
-        history_pe['PE Ratio'] = history_pe['Close'] / latest_eps
-        pe_fig = plot_line_chart(history_pe, 'PE Ratio', 'P/E Ratio Over Time (Using Latest EPS)', 'P/E Ratio')
+        history['PE Ratio'] = history['Close'] / latest_eps
+        pe_df = history[['PE Ratio']].copy()
+        pe_fig = plot_line_chart(pe_df, 'PE Ratio', 'P/E Ratio Over Time (Approx)', 'P/E Ratio')
         if pe_fig:
             st.plotly_chart(pe_fig, use_container_width=True)
         else:
@@ -116,3 +120,8 @@ def display_fundamental_graphs(ticker):
     
     # Placeholder for unavailable graphs
     st.info("Note: Some Qualtrim graphs (e.g., Revenue by Segment, Custom KPIs) are not available due to yfinance limitations. Consider a premium API for more data.")
+
+if __name__ == "__main__":
+    ticker = st.text_input("Enter Ticker", "AAPL")
+    if ticker:
+        display_fundamental_graphs(ticker)
