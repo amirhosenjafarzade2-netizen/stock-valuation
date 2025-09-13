@@ -8,7 +8,7 @@ from data_fetch import fetch_stock_data
 from visualizations import plot_heatmap, plot_monte_carlo, plot_model_comparison
 from utils import validate_inputs, export_portfolio, generate_pdf_report
 from monte_carlo import run_monte_carlo
-from graphs import display_fundamental_graphs  # Import graphs module
+from graphs import display_fundamental_graphs
 from screener import display_screener
 
 # Set Streamlit page config
@@ -22,11 +22,11 @@ if 'data' not in st.session_state:
 if 'results' not in st.session_state:
     st.session_state.results = {}
 
-# Load custom CSS - Enhanced for red tab headers
+# Load custom CSS
 with open("styles.html") as f:
     st.html(f.read())
 
-# Custom CSS for red tab headers (always red, not just when active)
+# Custom CSS for red tab headers (always red)
 st.markdown("""
 <style>
     .stTabs [data-baseweb="tab-list"] {
@@ -42,7 +42,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         height: 40px !important;
         border: none !important;
-        color: #d32f2f !important;  /* Always red */
+        color: #d32f2f !important;
         font-weight: 600 !important;
         flex: 1 !important;
         display: flex !important;
@@ -55,11 +55,11 @@ st.markdown("""
         background-color: transparent !important;
     }
     .stTabs [data-baseweb="tab"]:hover {
-        color: #b71c1c !important;  /* Darker red on hover */
+        color: #b71c1c !important;
         background-color: #ffebee !important;
     }
     .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        color: #d32f2f !important;  /* Still red when active */
+        color: #d32f2f !important;
         background-color: #fff !important;
         box-shadow: inset 0 -2px 0 #d32f2f !important;
     }
@@ -74,13 +74,6 @@ st.markdown("Analyze stocks using valuation models, view fundamental graphs, or 
 tab1, tab2, tab3 = st.tabs(["Valuation Dashboard", "Fundamental Graphs", "S&P 500 Screener"])
 
 with tab1:
-    # Theme toggle
-    theme = st.checkbox("Dark Mode", value=False, key="theme")
-    if theme:
-        st.markdown('<style>body {background-color: #1E1E1E; color: #FFFFFF;}</style>', unsafe_allow_html=True)
-    else:
-        st.markdown('<style>body {background-color: #FFFFFF; color: #000000;}</style>', unsafe_allow_html=True)
-
     # Sidebar for inputs
     with st.sidebar:
         st.header("Input Parameters")
@@ -229,7 +222,7 @@ with tab1:
         scenarios = pd.DataFrame({
             'Scenario': ['Base Case', 'Bull Case', 'Bear Case'],
             'Intrinsic Value': [results.get('intrinsic_value', 0), results.get('intrinsic_value', 0) * (1 + bull_adj/100), results.get('intrinsic_value', 0) * (1 + bear_adj/100)],
-            'Undervaluation %': [results.get('undervaluation', 0), results.get('undervaluation', 0) + bull_adj, results.get('undervaluation', 0) + bear_adj]
+            'Undervaluation %': [results.get('undervaluation', 0), results.get('undvaluation', 0) + bull_adj, results.get('undervaluation', 0) + bear_adj]
         })
         st.dataframe(scenarios, use_container_width=True)
 
@@ -258,13 +251,11 @@ with tab1:
         st.plotly_chart(comp_plot, use_container_width=True)
 
 with tab2:
-    # NEW: Fundamental Graphs Tab
     st.header("Fundamental Graphs")
     ticker_graphs = st.text_input("Enter Ticker for Graphs", value=st.session_state.get('data', {}).get('ticker', ''), help="Enter a ticker (e.g., AAPL) to view fundamental graphs.")
     if st.button("Fetch Graphs Data"):
         if ticker_graphs:
             try:
-                # Fetch basic data if needed, but graphs use their own fetch
                 display_fundamental_graphs(ticker_graphs)
                 st.success(f"Graphs loaded for {ticker_graphs}")
             except Exception as e:
