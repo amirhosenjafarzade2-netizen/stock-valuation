@@ -82,9 +82,7 @@ def display_screener():
     
     min_undervaluation = st.number_input(
         "Minimum Undervaluation %",
-        min_value=0.0,
-        max_value=100.0,
-        value=0.0,
+        min_value=0.0, max_value=100.0, value=0.0,
         help="Show only stocks with undervaluation above this threshold."
     )
     
@@ -104,7 +102,6 @@ def display_screener():
     if st.button("Run Screener"):
         with st.spinner("Screening S&P 500 stocks... This may take a few minutes."):
             results_df = run_screener(model, min_undervaluation, selected_sectors)
-            
             if results_df.empty:
                 st.info("No undervalued stocks found with the given criteria.")
             else:
@@ -112,7 +109,6 @@ def display_screener():
                 if sort_by == "Undervaluation % (Descending)":
                     results_df = results_df.sort_values(by='Undervaluation %', ascending=False)
                 # Else already sorted by Market Cap (B) in run_screener
-                
                 st.dataframe(results_df, use_container_width=True)
                 
                 # Download button
