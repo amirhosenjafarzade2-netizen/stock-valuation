@@ -8,7 +8,7 @@ from data_fetch import fetch_stock_data
 from visualizations import plot_heatmap, plot_monte_carlo, plot_model_comparison
 from utils import validate_inputs, export_portfolio, generate_pdf_report
 from monte_carlo import run_monte_carlo
-from graphs import display_fundamental_graphs
+from graphs import display_fundamental_graphs  # Import graphs module
 from screener import display_screener
 
 # Set Streamlit page config
@@ -22,13 +22,53 @@ if 'data' not in st.session_state:
 if 'results' not in st.session_state:
     st.session_state.results = {}
 
-# Load custom CSS
+# Load custom CSS - Enhanced for red tab headers
 with open("styles.html") as f:
     st.html(f.read())
 
-# Main UI with tabs
+# Custom CSS for red tab headers (always red, not just when active)
+st.markdown("""
+<style>
+    .stTabs [data-baseweb="tab-list"] {
+        display: flex !important;
+        flex-direction: row !important;
+        padding: 0px !important;
+        border-radius: 10px !important;
+        overflow: hidden !important;
+        background-color: #f0f2f6 !important;
+        border: 1px solid #e0e0e0 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 40px !important;
+        border: none !important;
+        color: #d32f2f !important;  /* Always red */
+        font-weight: 600 !important;
+        flex: 1 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 0 12px !important;
+        white-space: nowrap !important;
+        cursor: pointer !important;
+        transition: all 0.3s ease !important;
+        background-color: transparent !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #b71c1c !important;  /* Darker red on hover */
+        background-color: #ffebee !important;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        color: #d32f2f !important;  /* Still red when active */
+        background-color: #fff !important;
+        box-shadow: inset 0 -2px 0 #d32f2f !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Main UI with tabs: Valuation, Graphs, Screener
 st.title("Stock Valuation Dashboard")
-st.markdown("Analyze stocks using valuation models or screen the S&P 500. *Not financial advice. Verify all inputs and calculations independently.*")
+st.markdown("Analyze stocks using valuation models, view fundamental graphs, or screen the S&P 500. *Not financial advice. Verify all inputs and calculations independently.*")
 
 # Create tabs: Valuation Dashboard, Fundamental Graphs, S&P 500 Screener
 tab1, tab2, tab3 = st.tabs(["Valuation Dashboard", "Fundamental Graphs", "S&P 500 Screener"])
@@ -220,13 +260,17 @@ with tab1:
 with tab2:
     # NEW: Fundamental Graphs Tab
     st.header("Fundamental Graphs")
-    st.markdown("Qualtrim-inspired charts for key financial metrics. Enter a ticker to view graphs.")
-    ticker_graphs = st.text_input("Enter Ticker for Graphs", value="", help="e.g., AAPL")
-    if ticker_graphs:
-        with st.spinner("Fetching fundamental data..."):
-            display_fundamental_graphs(ticker_graphs)
-    else:
-        st.info("Enter a ticker above to view graphs.")
+    ticker_graphs = st.text_input("Enter Ticker for Graphs", value=st.session_state.get('data', {}).get('ticker', ''), help="Enter a ticker (e.g., AAPL) to view fundamental graphs.")
+    if st.button("Fetch Graphs Data"):
+        if ticker_graphs:
+            try:
+                # Fetch basic data if needed, but graphs use their own fetch
+                display_fundamental_graphs(ticker_graphs)
+                st.success(f"Graphs loaded for {ticker_graphs}")
+            except Exception as e:
+                st.error(f"Error loading graphs: {str(e)}")
+    elif ticker_graphs:
+        display_fundamental_graphs(ticker_graphs)
 
 with tab3:
     display_screener()
