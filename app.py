@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
-import yfinance as yf  # For data fetching (stubbed for now)
+import yfinance as yf
 from valuation_models import calculate_valuation
 from data_fetch import fetch_stock_data
 from visualizations import plot_heatmap, plot_monte_carlo, plot_model_comparison
 from utils import validate_inputs, export_portfolio, generate_pdf_report
 from monte_carlo import run_monte_carlo
-from screener import display_screener  # NEW: Import screener module
+from screener import display_screener
+from graphs import display_fundamental_graphs  # NEW: Import graphs module
 
 # Set Streamlit page config
 st.set_page_config(page_title="Stock Valuation Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -30,7 +31,7 @@ st.title("Stock Valuation Dashboard")
 st.markdown("Analyze stocks using valuation models or screen the S&P 500. *Not financial advice. Verify all inputs and calculations independently.*")
 
 # Create tabs for Valuation and Screener
-tab1, tab2 = st.tabs(["Valuation Dashboard", "S&P 500 Screener"])  # NEW: Added tabs
+tab1, tab2 = st.tabs(["Valuation Dashboard", "S&P 500 Screener"])
 
 with tab1:
     # Theme toggle
@@ -44,7 +45,6 @@ with tab1:
     with st.sidebar:
         st.header("Input Parameters")
         
-        # Model Descriptions
         with st.expander("Model Descriptions"):
             st.markdown("""
             - **Core Valuation (Excel)**: Best for steady-growth sectors (consumer goods, industrials, healthcare).
@@ -57,7 +57,6 @@ with tab1:
             - **Graham Intrinsic Value**: Best for value investing in undervalued stocks (any sector).
             """)
         
-        # Valuation Model Selection
         model = st.selectbox(
             "Valuation Model",
             ["Core Valuation (Excel)", "Lynch Method", "Discounted Cash Flow (DCF)", "Dividend Discount Model (DDM)",
@@ -65,7 +64,6 @@ with tab1:
             help="Select a model to analyze the stock."
         )
         
-        # Ticker and Data Fetching
         ticker = st.text_input("Ticker Symbol", help="Enter a valid ticker (e.g., AAPL) to fetch data or input manually.")
         if st.button("Fetch"):
             try:
@@ -75,10 +73,8 @@ with tab1:
             except Exception as e:
                 st.error(f"Error fetching data: {str(e)}. Enter manually.")
         
-        # Initialize inputs with fetched data or defaults
         data = st.session_state.get('data', {})
         
-        # Helper function to safely get value
         def safe_value(key, default, min_val=None, max_val=None):
             val = data.get(key, default)
             if min_val is not None and val < min_val:
@@ -97,13 +93,11 @@ with tab1:
         exit_pe = st.number_input("Exit P/E", min_value=0.01, value=safe_value('exit_pe', 15.0, min_val=0.01), key="exit_pe", help="Must be positive. Defaults to Historical Avg P/E")
         core_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=safe_value('core_mos', 25.0), key="core_mos", help="Must be 0-100%")
         
-        # Dividend Inputs
         with st.expander("Dividend Inputs"):
             dividend_per_share = st.number_input("Current Dividend Per Share", min_value=0.0, value=safe_value('dividend_per_share', 1.0), key="dividend_per_share")
             dividend_growth = st.number_input("Dividend Growth (5y, %)", min_value=0.0, max_value=50.0, value=safe_value('dividend_growth', 5.0), key="dividend_growth")
             dividend_mos = st.number_input("Dividend MOS (%)", min_value=0.0, max_value=100.0, value=safe_value('dividend_mos', 25.0), key="dividend_mos")
         
-        # DCF Inputs
         with st.expander("DCF Inputs"):
             fcf = st.number_input("Free Cash Flow (Latest, $M)", min_value=0.0, value=safe_value('fcf', 0.0), key="fcf")
             stable_growth = st.number_input("Stable Growth Rate (%)", min_value=0.0, max_value=50.0, value=safe_value('stable_growth', 3.0), key="stable_growth")
@@ -111,13 +105,11 @@ with tab1:
             wacc = st.number_input("WACC (%)", min_value=0.0, max_value=50.0, value=safe_value('wacc', 8.0), key="wacc")
             dcf_mos = st.number_input("DCF MOS (%)", min_value=0.0, max_value=100.0, value=safe_value('dcf_mos', 25.0), key="dcf_mos")
         
-        # RI and Graham Inputs
         with st.expander("RI/Graham Inputs"):
             book_value = st.number_input("Book Value Per Share", min_value=0.01, value=safe_value('book_value', 20.0, min_val=0.01), key="book_value")
             roe = st.number_input("Return on Equity (%)", min_value=0.0, max_value=100.0, value=safe_value('roe', 15.0), key="roe")
             ri_mos = st.number_input("RI MOS (%)", min_value=0.0, max_value=100.0, value=safe_value('ri_mos', 25.0), key="ri_mos")
         
-        # Portfolio and Monte Carlo
         with st.expander("Portfolio & Monte Carlo"):
             beta = st.number_input("Stock Beta", min_value=0.0, max_value=10.0, value=safe_value('beta', 1.0), key="beta")
             add_to_portfolio = st.checkbox("Add to Portfolio", value=False, key="add_to_portfolio")
@@ -166,11 +158,18 @@ with tab1:
         st.metric("Two-Stage DCF Value", f"${results.get('two_stage_dcf', 0):.2f}")
         st.metric("Residual Income Value", f"${results.get('ri_value', 0):.2f}")
         st.metric("Graham Intrinsic Value", f"${results.get('graham_value', 0):.2f}")
+        
+        # NEW: Fundamental Graphs Expander
+        with st.expander("Fundamental Graphs"):
+            if ticker:
+                display_fundamental_graphs(ticker)
+            else:
+                st.info("Enter a ticker to view fundamental graphs.")
     
     with col_right:
         st.header("Portfolio Overview")
         portfolio_beta = st.session_state.portfolio['Beta'].mean() if not st.session_state.portfolio.empty else 0
-        expected_return = portfolio_beta * 8.0  # Simplified CAPM
+        expected_return = portfolio_beta * 8.0
         st.metric("Portfolio Beta", f"{portfolio_beta:.2f}")
         st.metric("Portfolio Expected Return", f"{expected_return:.2f}%")
         
@@ -226,7 +225,7 @@ with tab1:
         st.plotly_chart(comp_plot, use_container_width=True)
 
 with tab2:
-    display_screener()  # NEW: Call screener module
+    display_screener()
 
 st.markdown("---")
 st.markdown("*Disclaimer: This tool is for informational purposes only and not financial advice. Verify all inputs and calculations independently.*")
