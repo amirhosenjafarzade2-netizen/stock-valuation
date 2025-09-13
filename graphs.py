@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
-from data_fetch import fetch_fundamental_data  # Import to fetch cached data
+from data_fetch import fetch_fundamental_data
 
 def plot_line_chart(df, y_col, title, y_label):
     """
@@ -11,7 +11,7 @@ def plot_line_chart(df, y_col, title, y_label):
     """
     if df.empty or y_col not in df.columns or df[y_col].isna().all():
         return None
-    df = df.sort_index()  # Ensure chronological order
+    df = df.sort_index()
     fig = px.line(df, x=df.index, y=y_col, title=title)
     fig.update_layout(
         yaxis_title=y_label,
@@ -90,7 +90,6 @@ def display_fundamental_graphs(ticker):
     
     # Return on Equity
     if 'NetIncomeCommonStockholders' in income.columns and 'TotalStockholderEquity' in balance.columns:
-        # Align dates for calculation
         common_dates = income.index.intersection(balance.index)
         if len(common_dates) > 0:
             roe_df = pd.DataFrame(index=common_dates)
