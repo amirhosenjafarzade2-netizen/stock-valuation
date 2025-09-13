@@ -74,44 +74,44 @@ with st.sidebar:
     
     # Initialize inputs with fetched data or defaults
     data = st.session_state.get('data', {})
-    desired_return = st.number_input("Desired Return/Cost of Equity (%)", min_value=0.0, max_value=50.0, value=data.get('desired_return', 10.0), help="Must be 0-50%")
-    years_high_growth = st.number_input("Years (High-Growth)", min_value=3, max_value=10, value=data.get('years_high_growth', 5), step=1, help="Must be 3-10 years")
-    current_price = st.number_input("Current Price", min_value=0.01, value=data.get('current_price', 100.0), help="Must be positive")
-    current_eps = st.number_input("Current EPS (TTM)", value=data.get('current_eps', 5.0), help="Must be non-zero for Core/Lynch/RI/Graham. Leave blank for DCF with FCF.")
-    forward_eps = st.number_input("Forward EPS (Next Yr)", min_value=0.01, value=data.get('forward_eps', 5.5), help="Must be positive for Core/Lynch")
-    historical_pe = st.number_input("Historical Avg P/E", min_value=0.01, value=data.get('historical_pe', 15.0), help="Must be positive")
-    analyst_growth = st.number_input("Analyst Growth (5y, %)", min_value=0.0, max_value=50.0, value=data.get('analyst_growth', 10.0), help="Must be 0-50%")
-    exit_pe = st.number_input("Exit P/E", min_value=0.01, value=data.get('exit_pe', historical_pe), help="Must be positive. Defaults to Historical Avg P/E")
-    core_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('core_mos', 25.0), help="Must be 0-100%")
+    desired_return = st.number_input("Desired Return/Cost of Equity (%)", min_value=0.0, max_value=50.0, value=data.get('desired_return', 10.0), key="desired_return", help="Must be 0-50%")
+    years_high_growth = st.number_input("Years (High-Growth)", min_value=3, max_value=10, value=data.get('years_high_growth', 5), step=1, key="years_high_growth", help="Must be 3-10 years")
+    current_price = st.number_input("Current Price", min_value=0.01, value=data.get('current_price', 100.0), key="current_price", help="Must be positive")
+    current_eps = st.number_input("Current EPS (TTM)", value=data.get('current_eps', 5.0), key="current_eps", help="Must be non-zero for Core/Lynch/RI/Graham. Leave blank for DCF with FCF.")
+    forward_eps = st.number_input("Forward EPS (Next Yr)", min_value=0.01, value=data.get('forward_eps', 5.5), key="forward_eps", help="Must be positive for Core/Lynch")
+    historical_pe = st.number_input("Historical Avg P/E", min_value=0.01, value=data.get('historical_pe', 15.0), key="historical_pe", help="Must be positive")
+    analyst_growth = st.number_input("Analyst Growth (5y, %)", min_value=0.0, max_value=50.0, value=data.get('analyst_growth', 10.0), key="analyst_growth", help="Must be 0-50%")
+    exit_pe = st.number_input("Exit P/E", min_value=0.01, value=data.get('exit_pe', historical_pe), key="exit_pe", help="Must be positive. Defaults to Historical Avg P/E")
+    core_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('core_mos', 25.0), key="core_mos", help="Must be 0-100%")
     
     # Dividend Inputs
     with st.expander("Dividend Inputs"):
-        dividend_per_share = st.number_input("Current Dividend Per Share", min_value=0.0, value=data.get('dividend_per_share', 1.0), help="Must be positive for DDM")
-        dividend_growth = st.number_input("Dividend Growth Rate (%)", min_value=0.0, max_value=50.0, value=data.get('dividend_growth', 5.0), help="Must be 0-50%. Default 5% if dividends present.")
-        dividend_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('dividend_mos', 25.0), help="Must be 0-100%")
+        dividend_per_share = st.number_input("Current Dividend Per Share", min_value=0.0, value=data.get('dividend_per_share', 1.0), key="dividend_per_share", help="Must be positive for DDM")
+        dividend_growth = st.number_input("Dividend Growth Rate (%)", min_value=0.0, max_value=50.0, value=data.get('dividend_growth', 5.0), key="dividend_growth", help="Must be 0-50%. Default 5% if dividends present.")
+        dividend_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('dividend_mos', 25.0), key="dividend_mos", help="Must be 0-100%")
     
     # DCF & Reverse DCF Inputs
     with st.expander("DCF & Reverse DCF Inputs"):
-        fcf = st.number_input("Free Cash Flow (FCF, optional)", value=data.get('fcf', 0.0), help="Must be non-zero for DCF if no EPS")
-        stable_growth = st.number_input("Stable Growth Rate (%)", min_value=0.0, max_value=50.0, value=data.get('stable_growth', 3.0), help="Must be 0-50% and < WACC")
-        tax_rate = st.number_input("Tax Rate (%)", min_value=0.0, max_value=100.0, value=data.get('tax_rate', 25.0), help="Must be 0-100%")
-        wacc = st.number_input("WACC (%)", min_value=0.0, max_value=50.0, value=data.get('wacc', 8.0), help="Must be 0-50% and > Stable Growth")
-        dcf_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('dcf_mos', 25.0), help="Must be 0-100%")
+        fcf = st.number_input("Free Cash Flow (FCF, optional)", value=data.get('fcf', 0.0), key="fcf", help="Must be non-zero for DCF if no EPS")
+        stable_growth = st.number_input("Stable Growth Rate (%)", min_value=0.0, max_value=50.0, value=data.get('stable_growth', 3.0), key="stable_growth", help="Must be 0-50% and < WACC")
+        tax_rate = st.number_input("Tax Rate (%)", min_value=0.0, max_value=100.0, value=data.get('tax_rate', 25.0), key="tax_rate", help="Must be 0-100%")
+        wacc = st.number_input("WACC (%)", min_value=0.0, max_value=50.0, value=data.get('wacc', 8.0), key="wacc", help="Must be 0-50% and > Stable Growth")
+        dcf_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('dcf_mos', 25.0), key="dcf_mos", help="Must be 0-100%")
     
     # Residual Income Inputs
     with st.expander("Residual Income Inputs"):
-        book_value = st.number_input("Book Value Per Share", min_value=0.01, value=data.get('book_value', 20.0), help="Must be positive for RI/Graham")
-        roe = st.number_input("ROE (%)", min_value=0.0, max_value=100.0, value=data.get('roe', 15.0), help="Must be 0-100%")
-        ri_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('ri_mos', 25.0), help="Must be 0-100%")
+        book_value = st.number_input("Book Value Per Share", min_value=0.01, value=data.get('book_value', 20.0), key="book_value", help="Must be positive for RI/Graham")
+        roe = st.number_input("ROE (%)", min_value=0.0, max_value=100.0, value=data.get('roe', 15.0), key="roe", help="Must be 0-100%")
+        ri_mos = st.number_input("Margin of Safety (%)", min_value=0.0, max_value=100.0, value=data.get('ri_mos', 25.0), key="ri_mos", help="Must be 0-100%")
     
     # Portfolio Beta Input
-    beta = st.number_input("Beta (for Portfolio)", min_value=0.0, value=data.get('beta', 1.0), help="Used for portfolio calculations")
+    beta = st.number_input("Beta (for Portfolio)", min_value=0.0, value=data.get('beta', 1.0), key="beta", help="Used for portfolio calculations")
     
     # Monte Carlo Settings
     with st.expander("Monte Carlo Settings"):
-        monte_carlo_runs = st.number_input("Number of Runs", min_value=100, max_value=2000, value=data.get('monte_carlo_runs', 1000), step=100, help="100-2000 runs (lower for faster performance)")
-        growth_adj = st.number_input("Growth Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=data.get('growth_adj', 10.0), help="0-50%")
-        wacc_adj = st.number_input("WACC Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=data.get('wacc_adj', 10.0), help="0-50%")
+        monte_carlo_runs = st.number_input("Number of Runs", min_value=100, max_value=2000, value=data.get('monte_carlo_runs', 1000), step=100, key="monte_carlo_runs", help="100-2000 runs (lower for faster performance)")
+        growth_adj = st.number_input("Growth Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=data.get('growth_adj', 10.0), key="growth_adj", help="0-50%")
+        wacc_adj = st.number_input("WACC Adjustment Range (±%)", min_value=0.0, max_value=50.0, value=data.get('wacc_adj', 10.0), key="wacc_adj", help="Must be 0-50%")
     
     # Action Buttons
     col1, col2 = st.columns(2)
