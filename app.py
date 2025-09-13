@@ -8,8 +8,8 @@ from data_fetch import fetch_stock_data
 from visualizations import plot_heatmap, plot_monte_carlo, plot_model_comparison
 from utils import validate_inputs, export_portfolio, generate_pdf_report
 from monte_carlo import run_monte_carlo
+from graphs import display_fundamental_graphs
 from screener import display_screener
-from graphs import display_fundamental_graphs  # NEW: Import graphs module
 
 # Set Streamlit page config
 st.set_page_config(page_title="Stock Valuation Dashboard", layout="wide", initial_sidebar_state="expanded")
@@ -30,8 +30,8 @@ with open("styles.html") as f:
 st.title("Stock Valuation Dashboard")
 st.markdown("Analyze stocks using valuation models or screen the S&P 500. *Not financial advice. Verify all inputs and calculations independently.*")
 
-# Create tabs for Valuation and Screener
-tab1, tab2 = st.tabs(["Valuation Dashboard", "S&P 500 Screener"])
+# Create tabs: Valuation Dashboard, Fundamental Graphs, S&P 500 Screener
+tab1, tab2, tab3 = st.tabs(["Valuation Dashboard", "Fundamental Graphs", "S&P 500 Screener"])
 
 with tab1:
     # Theme toggle
@@ -158,13 +158,6 @@ with tab1:
         st.metric("Two-Stage DCF Value", f"${results.get('two_stage_dcf', 0):.2f}")
         st.metric("Residual Income Value", f"${results.get('ri_value', 0):.2f}")
         st.metric("Graham Intrinsic Value", f"${results.get('graham_value', 0):.2f}")
-        
-        # NEW: Fundamental Graphs Expander
-        with st.expander("Fundamental Graphs"):
-            if ticker:
-                display_fundamental_graphs(ticker)
-            else:
-                st.info("Enter a ticker to view fundamental graphs.")
     
     with col_right:
         st.header("Portfolio Overview")
@@ -225,6 +218,17 @@ with tab1:
         st.plotly_chart(comp_plot, use_container_width=True)
 
 with tab2:
+    # NEW: Fundamental Graphs Tab
+    st.header("Fundamental Graphs")
+    st.markdown("Qualtrim-inspired charts for key financial metrics. Enter a ticker to view graphs.")
+    ticker_graphs = st.text_input("Enter Ticker for Graphs", value="", help="e.g., AAPL")
+    if ticker_graphs:
+        with st.spinner("Fetching fundamental data..."):
+            display_fundamental_graphs(ticker_graphs)
+    else:
+        st.info("Enter a ticker above to view graphs.")
+
+with tab3:
     display_screener()
 
 st.markdown("---")
