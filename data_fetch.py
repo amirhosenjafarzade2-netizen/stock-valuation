@@ -46,7 +46,7 @@ def fetch_stock_data(ticker):
         data['current_price'] = max(min(data['current_price'], 10000.0), 0.01)
         data['current_eps'] = max(min(data['current_eps'], 1000.0), -1000.0)
         data['forward_eps'] = max(min(data['forward_eps'], 1000.0), 0.01)
-        data['dividend_per_share'] = max(min(data['dividend_per_share', 100.0), 0.0)
+        data['dividend_per_share'] = max(min(data['dividend_per_share'], 100.0), 0.0)
         data['beta'] = max(min(data['beta'], 10.0), 0.0)
         data['book_value'] = max(min(data['book_value'], 10000.0), 0.01)
         data['roe'] = max(min(data['roe'], 100.0), -100.0)
