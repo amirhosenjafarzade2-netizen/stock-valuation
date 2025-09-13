@@ -10,45 +10,45 @@ import io
 def validate_inputs(inputs):
     """
     Validate all input parameters based on requirements from the HTML docs.
-    Returns True if valid, False otherwise.
+    Returns True if valid, False otherwise. More lenient for screener.
     """
     model = inputs['model']
     
     # Common validations
     if inputs['current_price'] <= 0:
-        st.error("Current Price must be positive.")
+        st.warning("Current Price must be positive. Skipping.")  # NEW: Warning instead of error for screener
         return False
     
     # Model-specific validations
     if model in ['Core Valuation (Excel)', 'Lynch Method', 'Residual Income (RI)', 'Graham Intrinsic Value']:
         if inputs['current_eps'] == 0:
-            st.error("Current EPS must be non-zero for Core/Lynch/RI/Graham.")
+            st.warning(f"Current EPS must be non-zero for {model}. Skipping.")  # NEW: Warning for screener
             return False
     if model in ['Core Valuation (Excel)', 'Lynch Method']:
         if inputs['forward_eps'] <= 0:
-            st.error("Forward EPS must be positive for Core/Lynch.")
+            st.warning(f"Forward EPS must be positive for {model}. Skipping.")  # NEW: Warning for screener
             return False
         if inputs['historical_pe'] <= 0:
-            st.error("Historical Avg P/E must be positive.")
+            st.warning("Historical Avg P/E must be positive. Skipping.")  # NEW: Warning for screener
             return False
     if model in ['Core Valuation (Excel)']:
         if not (3 <= inputs['years_high_growth'] <= 10):
-            st.error("Years (High-Growth) must be 3-10 years.")
+            st.warning("Years (High-Growth) must be 3-10 years. Skipping.")  # NEW: Warning for screener
             return False
     if model == 'Dividend Discount Model (DDM)':
         if inputs['dividend_per_share'] <= 0:
-            st.error("Current Dividend Per Share must be positive for DDM.")
+            st.warning("Current Dividend Per Share must be positive for DDM. Skipping.")  # NEW: Warning for screener
             return False
     if model in ['Discounted Cash Flow (DCF)', 'Reverse DCF']:
         if inputs['fcf'] == 0 and inputs['current_eps'] == 0:
-            st.error("Free Cash Flow or EPS must be non-zero for DCF if no EPS.")
+            st.warning("Free Cash Flow or EPS must be non-zero for DCF if no EPS. Skipping.")  # NEW: Warning for screener
             return False
         if inputs['stable_growth'] >= inputs['wacc']:
-            st.error("Stable Growth Rate must be < WACC.")
+            st.warning("Stable Growth Rate must be < WACC. Skipping.")  # NEW: Warning for screener
             return False
     if model in ['Residual Income (RI)', 'Graham Intrinsic Value']:
         if inputs['book_value'] <= 0:
-            st.error("Book Value Per Share must be positive for RI/Graham.")
+            st.warning("Book Value Per Share must be positive for RI/Graham. Skipping.")  # NEW: Warning for screener
             return False
     
     # Range validations
@@ -59,7 +59,7 @@ def validate_inputs(inputs):
         'stable_growth': (0, 50),
         'tax_rate': (0, 100),
         'wacc': (0, 50),
-        'roe': (0, 100),
+        'roe': (-100, 100),  # NEW: Allow negative ROE
         'core_mos': (0, 100),
         'dividend_mos': (0, 100),
         'dcf_mos': (0, 100),
@@ -69,7 +69,7 @@ def validate_inputs(inputs):
     
     for key, (min_val, max_val) in ranges.items():
         if key in inputs and not (min_val <= inputs[key] <= max_val):
-            st.error(f"{key.replace('_', ' ').title()} must be {min_val}-{max_val}%.")
+            st.warning(f"{key.replace('_', ' ').title()} must be {min_val}-{max_val}%. Skipping.")  # NEW: Warning for screener
             return False
     
     return True
@@ -81,6 +81,18 @@ def export_portfolio(portfolio_df, filename="portfolio.csv"):
     csv = portfolio_df.to_csv(index=False)
     st.download_button(
         label="Download Portfolio CSV",
+        data=csv,
+        file_name=filename,
+        mime="text/csv"
+    )
+
+def download_csv(df, filename):
+    """
+    Helper function to download a DataFrame as CSV.
+    """
+    csv = df.to_csv(index=False)
+    st.download_button(
+        label=f"Download {filename}",
         data=csv,
         file_name=filename,
         mime="text/csv"
