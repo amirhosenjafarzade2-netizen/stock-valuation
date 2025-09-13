@@ -116,7 +116,6 @@ def display_screener():
                 st.dataframe(results_df, use_container_width=True)
                 
                 # Download button
-                from utils import download_csv
                 csv = results_df.to_csv(index=False)
                 st.download_button(
                     label="Download Screener Results",
