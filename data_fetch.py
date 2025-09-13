@@ -46,7 +46,7 @@ def fetch_stock_data(ticker):
         data['current_price'] = max(min(data['current_price'], 10000.0), 0.01)
         data['current_eps'] = max(min(data['current_eps'], 1000.0), -1000.0)
         data['forward_eps'] = max(min(data['forward_eps'], 1000.0), 0.01)
-        data['dividend_per_share'] = max(min(data['dividend_per_share'], 100.0), 0.0)
+        data['dividend_per_share'] = max(min(data['dividend_per_share', 100.0), 0.0)
         data['beta'] = max(min(data['beta'], 10.0), 0.0)
         data['book_value'] = max(min(data['book_value'], 10000.0), 0.01)
         data['roe'] = max(min(data['roe'], 100.0), -100.0)
@@ -108,13 +108,16 @@ def get_sp500_tickers():
     """
     try:
         url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-        response = requests.get(url)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(url, headers=headers)
         if response.status_code != 200:
             raise ValueError(f"HTTP {response.status_code}: Unable to fetch Wikipedia page.")
+        if not response.text:
+            raise ValueError("Empty response from Wikipedia.")
+        
         soup = BeautifulSoup(response.text, 'html.parser')
         table = soup.find('table', {'id': 'constituents'})
         
-        # FIXED: Check if table exists before proceeding
         if table is None:
             raise ValueError("Could not find the constituents table on Wikipedia page.")
         
@@ -122,12 +125,12 @@ def get_sp500_tickers():
         names = []
         sectors = []
         
-        for row in table.find_all('tr')[1:]:  # Skip header
+        for row in table.find_all('tr')[1:]:
             cols = row.find_all('td')
-            if len(cols) >= 4:  # Ensure enough columns (Symbol, Security, GICS Sector is in col 4)
+            if len(cols) >= 4:
                 ticker = cols[0].text.strip().replace('.', '-')
                 name = cols[1].text.strip()
-                sector = cols[3].text.strip()  # GICS Sector is in the 4th column (index 3)
+                sector = cols[3].text.strip()
                 tickers.append(ticker)
                 names.append(name)
                 sectors.append(sector)
@@ -145,11 +148,21 @@ def get_sp500_tickers():
     
     except Exception as e:
         st.error(f"Error fetching S&P 500 list: {str(e)}. Using fallback list.")
-        # Fallback with more sample S&P 500 tickers
         return pd.DataFrame({
-            'Symbol': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B', 'JPM', 'V'],
-            'Security': ['Apple Inc.', 'Microsoft Corporation', 'Alphabet Inc. Class A', 'Amazon.com Inc.', 'Tesla Inc.', 'Meta Platforms Inc. Class A', 'NVIDIA Corporation', 'Berkshire Hathaway Inc. Class B', 'JPMorgan Chase & Co.', 'Visa Inc.'],
-            'GICS Sector': ['Information Technology', 'Information Technology', 'Communication Services', 'Consumer Discretionary', 'Consumer Discretionary', 'Communication Services', 'Information Technology', 'Financials', 'Financials', 'Information Technology']
+            'Symbol': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B', 'JPM', 'V',
+                       'WMT', 'UNH', 'MA', 'PG', 'HD', 'DIS', 'KO', 'PEP', 'INTC', 'CSCO'],
+            'Security': ['Apple Inc.', 'Microsoft Corporation', 'Alphabet Inc. Class A', 'Amazon.com Inc.',
+                         'Tesla Inc.', 'Meta Platforms Inc. Class A', 'NVIDIA Corporation',
+                         'Berkshire Hathaway Inc. Class B', 'JPMorgan Chase & Co.', 'Visa Inc.',
+                         'Walmart Inc.', 'UnitedHealth Group Incorporated', 'Mastercard Incorporated',
+                         'Procter & Gamble Company', 'Home Depot Inc.', 'Walt Disney Company',
+                         'Coca-Cola Company', 'PepsiCo Inc.', 'Intel Corporation', 'Cisco Systems Inc.'],
+            'GICS Sector': ['Information Technology', 'Information Technology', 'Communication Services',
+                            'Consumer Discretionary', 'Consumer Discretionary', 'Communication Services',
+                            'Information Technology', 'Financials', 'Financials', 'Information Technology',
+                            'Consumer Staples', 'Health Care', 'Information Technology', 'Consumer Staples',
+                            'Consumer Discretionary', 'Communication Services', 'Consumer Staples',
+                            'Consumer Staples', 'Information Technology', 'Information Technology']
         })
 
 @st.cache_data(ttl=3600)
