@@ -23,10 +23,13 @@ if 'results' not in st.session_state:
     st.session_state.results = {}
 
 # Load custom CSS
-with open("styles.html") as f:
-    st.html(f.read())
+try:
+    with open("styles.html") as f:
+        st.html(f.read())
+except FileNotFoundError:
+    st.warning("styles.html not found. Using default styling.")
 
-# Custom CSS for red tab headers (always red)
+# Custom CSS for red tab headers
 st.markdown("""
 <style>
     .stTabs [data-baseweb="tab-list"] {
@@ -70,7 +73,7 @@ st.markdown("""
 st.title("Stock Valuation Dashboard")
 st.markdown("Analyze stocks using valuation models, view fundamental graphs, or screen the S&P 500. *Not financial advice. Verify all inputs and calculations independently.*")
 
-# Create tabs: Valuation Dashboard, Fundamental Graphs, S&P 500 Screener
+# Create tabs
 tab1, tab2, tab3 = st.tabs(["Valuation Dashboard", "Fundamental Graphs", "S&P 500 Screener"])
 
 with tab1:
@@ -178,7 +181,7 @@ with tab1:
         st.metric("Current Price", f"${results.get('current_price', current_price):.2f}")
         st.metric("Intrinsic Value (Today)", f"${results.get('intrinsic_value', 0):.2f}")
         st.metric("Safe Buy Price (after MOS)", f"${results.get('safe_buy_price', 0):.2f}")
-        st.metric("Undervaluation %", f"${results.get('undervaluation', 0):.2f}%")
+        st.metric("Undervaluation %", f"{results.get('undervaluation', 0):.2f}%")
         st.metric("Implied Growth (Reverse DCF)", f"{results.get('implied_growth', 0):.2f}%")
         st.metric("Required EPS CAGR", f"{results.get('eps_cagr', 0):.2f}%")
         st.metric("PEG Ratio", f"{results.get('peg_ratio', 0):.2f}")
