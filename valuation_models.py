@@ -85,16 +85,16 @@ def get_verdict(undervaluation):
 
 def calculate_peg(inputs):
     """Calculate PEG ratio: P/E divided by growth rate."""
-    pe = inputs['current_price'] / inputs['current_eps'] if inputs['current_eps'] != 0 else 0
+    pe = inputs['current_price'] / inputs['current_eps'] if inputs['current_eps'] != 0 else 0  # NEW: Changed > to !=
     growth = inputs['analyst_growth']
-    return pe / growth if growth > 0 else 0
+    return pe / growth if growth > 0.01 else 0  # NEW: Added small epsilon to avoid division by zero
 
 def calculate_eps_cagr(inputs):
     """Calculate required EPS CAGR."""
     years = inputs['years_high_growth']
     current_eps = inputs['current_eps']
     target_eps = inputs['forward_eps'] * (1 + inputs['analyst_growth']/100)**years
-    if current_eps > 0 and years > 0:
+    if current_eps != 0 and years > 0:  # NEW: Changed > to !=
         return ((target_eps / current_eps) ** (1/years) - 1) * 100
     return 0
 
@@ -102,7 +102,7 @@ def calculate_weighted_score(results, inputs):
     """Weighted score: 30% undervaluation, 30% PEG (inverted), 40% P/E delta."""
     undervalue_weight = 0.3 * max(0, results['undervaluation'])
     peg_weight = 0.3 * (1 / (results['peg_ratio'] + 1)) * 100  # Invert PEG (lower better)
-    pe_delta_weight = 0.4 * max(0, inputs['pe_delta'])
+    pe_delta_weight = 0.4 * max(0, results['pe_delta'])  # NEW: Use results['pe_delta'] directly
     return min(100, max(0, undervalue_weight + peg_weight + pe_delta_weight))
 
 # Core Valuation (Excel) - P/E based projection
@@ -149,7 +149,7 @@ def ddm_valuation(inputs):
     if dividend <= 0:
         return {'intrinsic_value': 0}  # No dividends
     if cost_equity <= growth:
-        return {'intrinsic_value': current_price * 1.5}  # Cap at 1.5x price if invalid
+        return {'intrinsic_value': 0}  # NEW: Changed to return 0 for invalid case
     intrinsic_value = dividend * (1 + growth) / (cost_equity - growth)
     return {'intrinsic_value': max(intrinsic_value, 0)}
 
@@ -219,7 +219,7 @@ def reverse_dcf(inputs):
         return terminal / (1 + wacc)
     
     # Binary search for g
-    low, high = 0, 50  # Cap at 50%
+    low, high = 0, 100  # NEW: Cap at 100% instead of 50%
     for _ in range(50):  # Precision
         mid = (low + high) / 2
         if pv_func(mid) < current_price:
