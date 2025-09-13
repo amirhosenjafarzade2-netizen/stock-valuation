@@ -6,6 +6,15 @@ def run_monte_carlo(inputs, num_runs=1000, growth_adj=10.0, wacc_adj=10.0):
     Run Monte Carlo simulation by varying key inputs (growth rate, WACC).
     Returns a dictionary with results including distribution of intrinsic values.
     """
+    if num_runs <= 0:  # NEW: Added check for valid num_runs
+        return {
+            'values': np.array([]),
+            'avg_value': 0,
+            'std_dev': 0,
+            'prob_undervalued': 0,
+            'num_runs': 0
+        }
+    
     model = inputs['model']
     
     # Base values
