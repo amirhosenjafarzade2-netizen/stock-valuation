@@ -166,21 +166,27 @@ def display_fundamental_graphs(ticker):
         # Aggregate dividends by year to show a trend
         dividends_df = dividends.reset_index()
         dividends_df.columns = ['Date', 'Dividend']
-        dividends_df['Date'] = pd.to_datetime(dividends_df['Date'])
-        # Group by year to sum dividends (annual dividends per share)
-        dividends_annual = dividends_df.groupby(dividends_df['Date'].dt.year)['Dividend'].sum().reset_index()
-        dividends_annual['Date'] = pd.to_datetime(dividends_annual['Date'], format='%Y')
-        div_fig = plot_enhanced_line_chart(
-            dividends_annual,
-            'Dividend',
-            'Dividend Per Share Over Time',
-            'Dividend ($)',
-            cagr_periods=len(dividends_annual)
-        )
-        if div_fig:
-            st.plotly_chart(div_fig, use_container_width=True)
+        dividends_df['Date'] = pd.to_datetime(dividends_df['Date'], errors='coerce')
+        if not dividends_df['Date'].isna().all():
+            # Group by year to sum dividends (annual dividends per share)
+            dividends_annual = dividends_df.groupby(dividends_df['Date'].dt.year)['Dividend'].sum().reset_index()
+            dividends_annual['Date'] = pd.to_datetime(dividends_annual['Date'].astype(str) + '-01-01')
+            if len(dividends_annual) >= 2:
+                div_fig = plot_enhanced_line_chart(
+                    dividends_annual,
+                    'Dividend',
+                    'Dividend Per Share Over Time',
+                    'Dividend ($)',
+                    cagr_periods=len(dividends_annual)
+                )
+                if div_fig:
+                    st.plotly_chart(div_fig, use_container_width=True)
+            else:
+                st.warning(f"Insufficient dividend data points for {ticker}. Need at least two years of data.")
         else:
-            st.warning("Unable to plot Dividend Per Share graph due to insufficient data points.")
+            st.warning(f"No valid dividend dates for {ticker}.")
+    else:
+        st.warning(f"No dividend data available for {ticker}.")
     
     # Price
     if not history.empty:
@@ -203,32 +209,33 @@ def display_fundamental_graphs(ticker):
     
     # Intrinsic Value Comparison
     with st.expander("Intrinsic Value Comparison"):
-        st.info("Intrinsic value requires valuation model data (e.g., DCF from app.py). Placeholder for now.")
-        intr_val = st.number_input("Enter Intrinsic Value ($)", value=100.0)
+        st.info("Enter an intrinsic value below to compare with the current stock price.")
+        intr_val = st.number_input("Enter Intrinsic Value ($)", value=100.0, min_value=0.0)
         if not history.empty:
+            latest_date = history.index[-1]
+            latest_price = history['Close'].iloc[-1]
             val_df = pd.DataFrame({
-                'Date': [history.index[-1]],
-                'Intrinsic Value': [intr_val],
-                'Price': [history['Close'].iloc[-1]]
+                'Date': [latest_date, latest_date],
+                'Value': [intr_val, latest_price],
+                'Metric': ['Intrinsic Value', 'Price']
             })
             val_fig = px.line(
                 val_df,
                 x='Date',
-                y=['Intrinsic Value', 'Price'],
+                y='Value',
+                color='Metric',
                 title='Intrinsic Value vs. Price',
-                labels={'value': 'Value ($)', 'variable': 'Metric'},
+                labels={'Value': 'Value ($)', 'Metric': 'Metric'},
                 color_discrete_map={'Intrinsic Value': '#00CC96', 'Price': '#EF553B'}
             )
-            val_fig.update_layout(template='plotly_white', height=450, hovermode='x unified')
+            val_fig.update_layout(
+                template='plotly_white',
+                height=450,
+                hovermode='x unified',
+                showlegend=True
+            )
             val_fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
             val_fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
             st.plotly_chart(val_fig, use_container_width=True)
-    
-    st.info("""
-    **Inspired by Qualtrim**: These charts aim to mimic Qualtrim's depth (e.g., 30+ years, buyback impacts). yfinance limits data to ~10 years for price history and ~4-5 years for financials. Upload Qualtrim screenshots for further refinement!
-    """)
-
-if __name__ == "__main__":
-    ticker = st.text_input("Enter Ticker", "AAPL")
-    if ticker:
-        display_fundamental_graphs(ticker)
+        else:
+            st.warning(f"No price history available for {ticker}. Cannot display Intrinsic Value Comparison.")
