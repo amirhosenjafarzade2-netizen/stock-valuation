@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
-from data_fetch import fetch_fundamental_data  # Import to fetch cached data
+from data_fetch import fetch_fundamental_data
 
 def plot_line_chart(df, y_col, title, y_label):
     """
@@ -11,7 +11,7 @@ def plot_line_chart(df, y_col, title, y_label):
     """
     if df.empty or y_col not in df.columns or df[y_col].isna().all():
         return None
-    df = df.sort_index()  # Ensure chronological order
+    df = df.sort_index()
     fig = px.line(df, x=df.index, y=y_col, title=title)
     fig.update_layout(
         yaxis_title=y_label,
@@ -45,16 +45,17 @@ def display_fundamental_graphs(ticker):
             st.info("Revenue data not available.")
     
     # EPS Growth
-    if 'Eps Diluted' in income.columns:
-        eps_fig = plot_line_chart(income, 'Eps Diluted', 'EPS (Diluted) Over Time', 'EPS ($)')
+    if 'BasicEPS' in income.columns or 'DilutedEPS' in income.columns:
+        eps_col = 'BasicEPS' if 'BasicEPS' in income.columns else 'DilutedEPS'
+        eps_fig = plot_line_chart(income, eps_col, f'EPS ({eps_col}) Over Time', 'EPS ($)')
         if eps_fig:
             st.plotly_chart(eps_fig, use_container_width=True)
         else:
             st.info("EPS data not available.")
     
     # Free Cash Flow
-    if 'Free Cash Flow' in cashflow.columns:
-        fcf_fig = plot_line_chart(cashflow, 'Free Cash Flow', 'Free Cash Flow Over Time', 'FCF ($)')
+    if 'FreeCashFlow' in cashflow.columns:
+        fcf_fig = plot_line_chart(cashflow, 'FreeCashFlow', 'Free Cash Flow Over Time', 'FCF ($)')
         if fcf_fig:
             st.plotly_chart(fcf_fig, use_container_width=True)
         else:
@@ -71,8 +72,8 @@ def display_fundamental_graphs(ticker):
             st.info("Dividend data not available.")
     
     # Gross Margin
-    if 'Gross Profit' in income.columns and 'Total Revenue' in income.columns:
-        income['Gross Margin'] = (income['Gross Profit'] / income['Total Revenue'] * 100).replace([float('inf'), -float('inf')], 0)
+    if 'GrossProfit' in income.columns and 'TotalRevenue' in income.columns:
+        income['Gross Margin'] = (income['GrossProfit'] / income['TotalRevenue'] * 100).fillna(0).replace([float('inf'), -float('inf')], 0)
         margin_fig = plot_line_chart(income, 'Gross Margin', 'Gross Margin Over Time', 'Gross Margin (%)')
         if margin_fig:
             st.plotly_chart(margin_fig, use_container_width=True)
@@ -80,29 +81,34 @@ def display_fundamental_graphs(ticker):
             st.info("Gross Margin data not available.")
     
     # Debt Levels
-    if 'Total Debt' in balance.columns:
-        debt_fig = plot_line_chart(balance, 'Total Debt', 'Total Debt Over Time', 'Debt ($)')
+    if 'TotalDebt' in balance.columns:
+        debt_fig = plot_line_chart(balance, 'TotalDebt', 'Total Debt Over Time', 'Debt ($)')
         if debt_fig:
             st.plotly_chart(debt_fig, use_container_width=True)
         else:
             st.info("Debt data not available.")
     
     # Return on Equity
-    if 'Net Income' in income.columns and 'Total Stockholder Equity' in balance.columns:
-        balance['ROE'] = (income['Net Income'] / balance['Total Stockholder Equity'] * 100).replace([float('inf'), -float('inf')], 0)
-        roe_fig = plot_line_chart(balance, 'ROE', 'Return on Equity Over Time', 'ROE (%)')
-        if roe_fig:
-            st.plotly_chart(roe_fig, use_container_width=True)
+    if 'NetIncome' in income.columns and 'TotalStockholderEquity' in balance.columns:
+        # Align indices if needed
+        common_index = income.index.intersection(balance.index)
+        if not common_index.empty:
+            roe_series = (income.loc[common_index, 'NetIncome'] / balance.loc[common_index, 'TotalStockholderEquity'] * 100).fillna(0).replace([float('inf'), -float('inf')], 0)
+            roe_df = pd.DataFrame({'ROE': roe_series}, index=common_index)
+            roe_fig = plot_line_chart(roe_df, 'ROE', 'Return on Equity Over Time', 'ROE (%)')
+            if roe_fig:
+                st.plotly_chart(roe_fig, use_container_width=True)
         else:
-            st.info("ROE data not available.")
+            st.info("ROE data not available due to index mismatch.")
     
     # P/E Ratio History
-    if not history.empty and 'Eps Diluted' in income.columns:
-        history['Date'] = history.index
-        merged = history.merge(income[['Eps Diluted']], left_index=True, right_index=True, how='left')
-        merged['Eps Diluted'] = merged['Eps Diluted'].ffill()
-        merged['PE Ratio'] = merged['Close'] / merged['Eps Diluted'].replace(0, float('nan'))
-        pe_fig = plot_line_chart(merged, 'PE Ratio', 'P/E Ratio Over Time', 'P/E Ratio')
+    if not history.empty and ('BasicEPS' in income.columns or 'DilutedEPS' in income.columns):
+        eps_col = 'BasicEPS' if 'BasicEPS' in income.columns else 'DilutedEPS'
+        # Use latest EPS for forward fill
+        latest_eps = income[eps_col].dropna().iloc[-1] if not income[eps_col].dropna().empty else 1.0
+        history_pe = history.copy()
+        history_pe['PE Ratio'] = history_pe['Close'] / latest_eps
+        pe_fig = plot_line_chart(history_pe, 'PE Ratio', 'P/E Ratio Over Time (Using Latest EPS)', 'P/E Ratio')
         if pe_fig:
             st.plotly_chart(pe_fig, use_container_width=True)
         else:
@@ -110,8 +116,3 @@ def display_fundamental_graphs(ticker):
     
     # Placeholder for unavailable graphs
     st.info("Note: Some Qualtrim graphs (e.g., Revenue by Segment, Custom KPIs) are not available due to yfinance limitations. Consider a premium API for more data.")
-
-if __name__ == "__main__":
-    ticker = st.text_input("Enter Ticker", "AAPL")
-    if ticker:
-        display_fundamental_graphs(ticker)
