@@ -1,128 +1,132 @@
-import streamlit as st
-import pandas as pd
-from data_fetch import fetch_stock_data, get_sp500_tickers
-from valuation_models import calculate_valuation
-from utils import validate_inputs
+<style>
+/* General page styling */
+body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+}
 
-def run_screener(model, min_undervaluation=0.0, selected_sectors=None):
-    """
-    Screen S&P 500 stocks using the specified valuation model.
-    Returns a DataFrame with undervalued stocks, including sector, ticker, name, undervaluation %, and market cap.
-    """
-    # Fetch S&P 500 tickers and metadata
-    sp500_data = get_sp500_tickers()
-    
-    # Filter by selected sectors if provided
-    if selected_sectors:
-        sp500_data = sp500_data[sp500_data['GICS Sector'].isin(selected_sectors)]
-    
-    results = []
-    progress_bar = st.progress(0)
-    total_stocks = len(sp500_data)
-    
-    for idx, row in sp500_data.iterrows():
-        ticker = row['Symbol']
-        try:
-            # Fetch stock data
-            data = fetch_stock_data(ticker)
-            data['model'] = model  # Set the valuation model
-            
-            # Validate inputs
-            if validate_inputs(data):
-                # Calculate valuation
-                valuation_results = calculate_valuation(data)
-                undervaluation = valuation_results.get('undervaluation', 0)
-                
-                # Only include undervalued stocks above threshold
-                if undervaluation > min_undervaluation:
-                    results.append({
-                        'Sector': row['GICS Sector'],
-                        'Ticker': ticker,
-                        'Name': row['Security'],
-                        'Undervaluation %': undervaluation,
-                        'Market Cap (B)': data.get('market_cap', 0) / 1e9,  # Convert to billions
-                        'Intrinsic Value': valuation_results.get('intrinsic_value', 0)
-                    })
-            
-            # Update progress
-            progress_bar.progress((idx + 1) / total_stocks)
-            
-        except Exception as e:
-            st.warning(f"Skipping {ticker}: {str(e)}")
-            continue
-    
-    # Convert results to DataFrame
-    results_df = pd.DataFrame(results)
-    
-    # Sort by market cap (descending) by default
-    if not results_df.empty:
-        results_df = results_df.sort_values(by='Market Cap (B)', ascending=False)
-    
-    return results_df
+/* Title styling */
+h1, h2, h3 {
+    color: #333;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
 
-def display_screener():
-    """
-    Display the stock screener interface in Streamlit.
-    """
-    st.header("S&P 500 Stock Screener")
-    st.markdown("Screen S&P 500 stocks for undervaluation based on the selected valuation model.")
-    
-    # Get S&P 500 data for sector options
-    sp500_data = get_sp500_tickers()
-    sector_options = sorted(sp500_data['GICS Sector'].unique())
-    
-    # User inputs
-    model = st.selectbox(
-        "Valuation Model",
-        ["Core Valuation (Excel)", "Lynch Method", "Discounted Cash Flow (DCF)", 
-         "Dividend Discount Model (DDM)", "Two-Stage DCF", "Residual Income (RI)", 
-         "Reverse DCF", "Graham Intrinsic Value"],
-        key="screener_model"
-    )
-    
-    min_undervaluation = st.number_input(
-        "Minimum Undervaluation %",
-        min_value=0.0,
-        max_value=100.0,
-        value=0.0,
-        help="Show only stocks with undervaluation above this threshold."
-    )
-    
-    selected_sectors = st.multiselect(
-        "Filter by Sector(s)",
-        sector_options,
-        default=sector_options,
-        help="Select sectors to screen. Leave all selected for full S&P 500."
-    )
-    
-    sort_by = st.selectbox(
-        "Sort By",
-        ["Market Cap (Descending)", "Undervaluation % (Descending)"],
-        help="Sort results by market cap or undervaluation percentage."
-    )
-    
-    if st.button("Run Screener"):
-        with st.spinner("Screening S&P 500 stocks... This may take a few minutes."):
-            results_df = run_screener(model, min_undervaluation, selected_sectors)
-            
-            if results_df.empty:
-                st.info("No undervalued stocks found with the given criteria.")
-            else:
-                # Apply sorting
-                if sort_by == "Undervaluation % (Descending)":
-                    results_df = results_df.sort_values(by='Undervaluation %', ascending=False)
-                # Else already sorted by Market Cap (B) in run_screener
-                
-                st.dataframe(results_df, use_container_width=True)
-                
-                # Download button
-                csv = results_df.to_csv(index=False)
-                st.download_button(
-                    label="Download Screener Results",
-                    data=csv,
-                    file_name="sp500_screener_results.csv",
-                    mime="text/csv"
-                )
+/* Container for main content */
+.stApp {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
 
-if __name__ == "__main__":
-    display_screener()
+/* Sidebar styling */
+.css-1lcbmhc {
+    background-color: #ffffff;
+    border-right: 1px solid #e0e0e0;
+    padding: 20px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+/* Button styling */
+.stButton>button {
+    background-color: #d32f2f;
+    color: white;
+    border-radius: 5px;
+    padding: 8px 16px;
+    border: none;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+.stButton>button:hover {
+    background-color: #b71c1c;
+}
+
+/* Tab styling (red headers, consistent with your requirement) */
+.stTabs [data-baseweb="tab-list"] {
+    display: flex !important;
+    flex-direction: row !important;
+    padding: 0px !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    background-color: #f0f2f6 !important;
+    border: 1px solid #e0e0e0 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    margin-bottom: 20px;
+}
+.stTabs [data-baseweb="tab"] {
+    height: 40px !important;
+    border: none !important;
+    color: #d32f2f !important;
+    font-weight: 600 !important;
+    flex: 1 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 0 12px !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    background-color: transparent !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: #b71c1c !important;
+    background-color: #ffebee !important;
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    color: #d32f2f !important;
+    background-color: #fff !important;
+    box-shadow: inset 0 -2px 0 #d32f2f !important;
+}
+
+/* Input fields */
+.stTextInput input, .stNumberInput input, .stSelectbox select {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 8px;
+}
+
+/* DataFrame styling */
+.stDataFrame {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+/* Expander styling */
+.stExpander {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+/* Plotly chart container */
+.plotly-chart {
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .stApp {
+        padding: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-size: 14px;
+        padding: 0 8px;
+    }
+    .css-1lcbmhc {
+        padding: 10px;
+    }
+}
+
+/* Ensure no code blocks are displayed */
+code, pre {
+    display: none !important;
+}
+</style>
