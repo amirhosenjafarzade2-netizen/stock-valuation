@@ -222,7 +222,7 @@ with tab1:
         scenarios = pd.DataFrame({
             'Scenario': ['Base Case', 'Bull Case', 'Bear Case'],
             'Intrinsic Value': [results.get('intrinsic_value', 0), results.get('intrinsic_value', 0) * (1 + bull_adj/100), results.get('intrinsic_value', 0) * (1 + bear_adj/100)],
-            'Undervaluation %': [results.get('undervaluation', 0), results.get('undvaluation', 0) + bull_adj, results.get('undervaluation', 0) + bear_adj]
+            'Undervaluation %': [results.get('undervaluation', 0), results.get('undervaluation', 0) + bull_adj, results.get('undervaluation', 0) + bear_adj]
         })
         st.dataframe(scenarios, use_container_width=True)
 
