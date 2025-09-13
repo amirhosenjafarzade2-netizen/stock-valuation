@@ -45,7 +45,7 @@ h1, h2, h3 {
     background-color: #b71c1c;
 }
 
-/* Tab styling (red headers, consistent with your requirement) */
+/* Tab styling (red headers) */
 .stTabs [data-baseweb="tab-list"] {
     display: flex !important;
     flex-direction: row !important;
@@ -111,6 +111,28 @@ h1, h2, h3 {
     padding: 10px;
 }
 
+/* Download button */
+.stDownloadButton>button {
+    background-color: #d32f2f;
+    color: white;
+    border-radius: 5px;
+    padding: 8px 16px;
+    border: none;
+    font-weight: 500;
+}
+.stDownloadButton>button:hover {
+    background-color: #b71c1c;
+}
+
+/* Metric styling */
+.stMetric {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .stApp {
@@ -125,7 +147,7 @@ h1, h2, h3 {
     }
 }
 
-/* Ensure no code blocks are displayed */
+/* Prevent code blocks from displaying */
 code, pre {
     display: none !important;
 }
