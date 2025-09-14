@@ -1,203 +1,262 @@
-import yfinance as yf
-import streamlit as st
-import pandas as pd
-from datetime import datetime, timedelta
 import requests
+import pandas as pd
+import numpy as np
+import yfinance as yf
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+import streamlit as st
+from tenacity import retry, stop_after_attempt, wait_exponential
+import logging
+from dotenv import load_dotenv
+import os
 
-@st.cache_data(ttl=3600)
-def fetch_stock_data(ticker):
+# Configure logging
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+load_dotenv()
+
+@st.cache_resource
+def get_yfinance_ticker(symbol):
+    return yf.Ticker(symbol)
+
+@st.cache_data(ttl=600)
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
+def fetch_bitcoin_data(electricity_cost=0.05):
     """
-    Fetch stock data from Yahoo Finance for a given ticker.
-    Returns a dictionary with relevant financial metrics.
+    Fetch Bitcoin data from CoinGecko, CoinMarketCap, or Kraken (in order).
+    electricity_cost: Cost per kWh for mining cost estimation ($/kWh).
+    Returns a dictionary with relevant metrics.
     """
+    data = {}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
+    # Try CoinGecko
     try:
-        ticker = ticker.replace('.', '-')
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        history = stock.history(period="5y")
+        cg_url = "https://api.coingecko.com/api/v3/coins/bitcoin"
+        cg_params = {'x_cg_api_key': os.getenv('COINGECKO_API_KEY', '')}
+        cg_response = requests.get(cg_url, headers=headers, params=cg_params, timeout=10).json()
+        market_data = cg_response['market_data']
         
-        data = {
-            'current_price': info.get('currentPrice', info.get('regularMarketPrice', info.get('previousClose', 0.0))),
-            'current_eps': info.get('trailingEps', info.get('trailingPE', 0.0) * info.get('currentPrice', 1.0) / max(info.get('trailingPE', 1.0), 0.01) if info.get('trailingPE', 0) > 0 else 0.0),
-            'forward_eps': info.get('forwardEps', 0.0),
-            'dividend_per_share': info.get('dividendRate', info.get('trailingAnnualDividendRate', 0.0)),
-            'beta': info.get('beta', 1.0),
-            'book_value': info.get('bookValue', info.get('priceToBook', 1.0) * info.get('currentPrice', 1.0) / max(info.get('priceToBook', 0.01), 0.01) if info.get('priceToBook', 0) > 0 else 20.0),
-            'roe': info.get('returnOnEquity', 0.0) * 100 if info.get('returnOnEquity', 0.0) else (info.get('netIncomeToCommon', 0.0) / max(info.get('totalStockholderEquity', 1.0), 0.01)) * 100,
-            'analyst_growth': info.get('earningsGrowth', 0.0) * 100,
-            'tax_rate': 25.0,
-            'wacc': 8.0,
-            'stable_growth': 3.0,
-            'desired_return': 10.0,
-            'years_high_growth': 5,
-            'core_mos': 25.0,
-            'dividend_mos': 25.0,
-            'dcf_mos': 25.0,
-            'ri_mos': 25.0,
-            'fcf': 0.0,
-            'dividend_growth': 5.0,
-            'monte_carlo_runs': 1000,
-            'growth_adj': 10.0,
-            'wacc_adj': 10.0,
-            'market_cap': info.get('marketCap', 0.0)
-        }
-        
-        data['current_price'] = max(min(data['current_price'], 10000.0), 0.01)
-        data['current_eps'] = max(min(data['current_eps'], 1000.0), -1000.0)
-        data['forward_eps'] = max(min(data['forward_eps'], 1000.0), 0.01)
-        data['dividend_per_share'] = max(min(data['dividend_per_share'], 100.0), 0.0)
-        data['beta'] = max(min(data['beta'], 10.0), 0.0)
-        data['book_value'] = max(min(data['book_value'], 10000.0), 0.01)
-        data['roe'] = max(min(data['roe'], 100.0), -100.0)
-        data['analyst_growth'] = max(min(data['analyst_growth'], 50.0), 0.0)
-        data['historical_pe'] = 15.0
-        data['market_cap'] = max(min(data['market_cap'], 1e12), 0.0)
-        
-        if not history.empty and len(history) > 0:
-            avg_close = history['Close'].mean()
-            if data['current_eps'] != 0:
-                calculated_pe = avg_close / data['current_eps']
-                data['historical_pe'] = max(min(calculated_pe, 100.0), 0.01)
-            else:
-                data['historical_pe'] = 15.0
-        else:
-            data['historical_pe'] = 15.0
-        
-        data['exit_pe'] = data['historical_pe']
-        
-        print(f"Fetched data for {ticker}: {data}")
-        return data
+        data['current_price'] = market_data['current_price']['usd']
+        data['market_cap'] = market_data['market_cap']['usd']
+        data['total_volume'] = market_data['total_volume']['usd']
+        data['circulating_supply'] = market_data['circulating_supply']
+        data['total_supply'] = market_data['max_supply'] or 21000000
+        community = cg_response['community_data']
+        data['social_volume'] = community['reddit_average_posts_48h'] + community['twitter_followers'] / 1000
+        up = cg_response['sentiment_votes_up_percentage']
+        down = cg_response['sentiment_votes_down_percentage']
+        data['sentiment_score'] = (up - down) / 100 if up and down else 0.0
+        logging.info("Successfully fetched data from CoinGecko")
+        st.success("Fetched market data from CoinGecko")
     
     except Exception as e:
-        st.error(f"Error fetching data for {ticker}: {str(e)}. Using defaults.")
-        print(f"Fetch error for {ticker}: {str(e)}")
-        return {
-            'current_price': 100.0,
-            'current_eps': 5.0,
-            'forward_eps': 5.5,
-            'dividend_per_share': 1.0,
-            'beta': 1.0,
-            'book_value': 20.0,
-            'roe': 15.0,
-            'historical_pe': 15.0,
-            'exit_pe': 15.0,
-            'analyst_growth': 10.0,
-            'tax_rate': 25.0,
-            'wacc': 8.0,
-            'stable_growth': 3.0,
-            'desired_return': 10.0,
-            'years_high_growth': 5,
-            'core_mos': 25.0,
-            'dividend_mos': 25.0,
-            'dcf_mos': 25.0,
-            'ri_mos': 25.0,
-            'fcf': 0.0,
-            'dividend_growth': 5.0,
-            'monte_carlo_runs': 1000,
-            'growth_adj': 10.0,
-            'wacc_adj': 10.0,
-            'market_cap': 0.0
-        }
+        logging.error(f"CoinGecko failed: {str(e)}")
+        st.warning("CoinGecko failed. Trying CoinMarketCap...")
+        
+        # Try CoinMarketCap
+        try:
+            cmc_url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest"
+            cmc_params = {'symbol': 'BTC', 'convert': 'USD'}
+            cmc_headers = {'X-CMC_PRO_API_KEY': os.getenv('COINMARKETCAP_API_KEY', ''), **headers}
+            cmc_response = requests.get(cmc_url, headers=cmc_headers, params=cmc_params, timeout=10).json()
+            btc_data = cmc_response['data']['BTC']
+            
+            data['current_price'] = btc_data['quote']['USD']['price']
+            data['market_cap'] = btc_data['quote']['USD']['market_cap']
+            data['total_volume'] = btc_data['quote']['USD']['volume_24h']
+            data['circulating_supply'] = btc_data['circulating_supply']
+            data['total_supply'] = btc_data['max_supply'] or 21000000
+            data['social_volume'] = 10000  # No direct equivalent
+            data['sentiment_score'] = 0.5  # No direct equivalent
+            logging.info("Successfully fetched data from CoinMarketCap")
+            st.success("Fetched market data from CoinMarketCap")
+        
+        except Exception as e:
+            logging.error(f"CoinMarketCap failed: {str(e)}")
+            st.warning("CoinMarketCap failed. Trying Kraken...")
+            
+            # Try Kraken
+            try:
+                kraken_url = "https://api.kraken.com/0/public/Ticker?pair=XBTUSD"
+                kraken_response = requests.get(kraken_url, headers=headers, timeout=10).json()
+                btc_data = kraken_response['result']['XXBTZUSD']
+                
+                data['current_price'] = float(btc_data['c'][0])
+                data['market_cap'] = float(btc_data['c'][0]) * 19700000  # Approximate circulating supply
+                data['total_volume'] = float(btc_data['v'][1]) * float(btc_data['c'][0])  # 24h volume
+                data['circulating_supply'] = 19700000
+                data['total_supply'] = 21000000
+                data['social_volume'] = 10000
+                data['sentiment_score'] = 0.5
+                logging.info("Successfully fetched data from Kraken")
+                st.success("Fetched market data from Kraken")
+            
+            except Exception as e:
+                logging.error(f"Kraken failed: {str(e)}")
+                st.error("Unable to fetch market data from all sources. Using defaults. Check API keys or network.")
+                data['current_price'] = 60000.0
+                data['market_cap'] = 1.2e12
+                data['total_volume'] = 5e10
+                data['circulating_supply'] = 19700000
+                data['total_supply'] = 21000000
+                data['social_volume'] = 10000
+                data['sentiment_score'] = 0.5
+    
+    # Blockchain.com for on-chain
+    @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def get_latest(chart_name, timespan='1days'):
+        try:
+            url = f"https://api.blockchain.info/charts/{chart_name}?format=json&timespan={timespan}"
+            response = requests.get(url, headers=headers).json()
+            return response['values'][-1]['y']
+        except Exception as e:
+            logging.error(f"Error fetching {chart_name}: {str(e)}")
+            return 0.0
+    
+    data['hash_rate'] = get_latest('hash-rate') or 500.0
+    data['active_addresses'] = get_latest('n-unique-addresses') or 1000000
+    data['transaction_volume'] = get_latest('estimated-transaction-volume-usd') or 1e9
+    data['mvrv'] = get_latest('mvrv') or 2.0
+    data['sopr'] = get_latest('sopr') or 1.0
+    data['puell_multiple'] = get_latest('puell_multiple') or 1.0
+    data['realized_cap'] = data['market_cap'] / data['mvrv'] if data['mvrv'] > 0 else 6e11
+    
+    # Mining cost estimation
+    def estimate_mining_cost(hash_rate, electricity_cost):
+        power_consumption = hash_rate * 1000
+        return power_consumption * electricity_cost * 24 * 365 / (6.25 * 144)
+    data['mining_cost'] = estimate_mining_cost(data['hash_rate'], electricity_cost)
+    data['electricity_cost'] = electricity_cost
+    
+    # Next halving
+    try:
+        height = requests.get('https://blockchain.info/q/getblockcount', headers=headers).json()
+        current_cycle = height // 210000
+        next_halving_block = (current_cycle + 1) * 210000
+        blocks_left = next_halving_block - height
+        minutes_left = blocks_left * 10
+        days_left = minutes_left / 1440
+        data['next_halving_date'] = datetime.now() + timedelta(days=days_left)
+    except Exception as e:
+        logging.error(f"Error calculating halving: {str(e)}")
+        data['next_halving_date'] = datetime(2028, 4, 1)
+    
+    # Fear & Greed
+    try:
+        fng_url = "https://api.alternative.me/fng/?limit=1"
+        fng_response = requests.get(fng_url, headers=headers).json()
+        data['fear_greed'] = int(fng_response['data'][0]['value'])
+    except Exception as e:
+        logging.error(f"Error fetching Fear & Greed: {str(e)}")
+        data['fear_greed'] = 50
+    
+    # Macro: Gold price
+    try:
+        gold = get_yfinance_ticker('GC=F')
+        data['gold_price'] = gold.info.get('currentPrice', gold.info.get('regularMarketPrice', 2000.0))
+    except Exception as e:
+        logging.error(f"Error fetching gold price: {str(e)}")
+        data['gold_price'] = 2000.0
+    
+    # Macro: S&P 500 correlation
+    try:
+        end = datetime.now()
+        start = end - timedelta(days=365)
+        btc_hist = yf.download('BTC-USD', start=start, end=end)['Close']
+        sp_hist = yf.download('^GSPC', start=start, end=end)['Close']
+        correlation = btc_hist.corr(sp_hist)
+        data['sp_correlation'] = correlation if not np.isnan(correlation) else 0.5
+    except Exception as e:
+        logging.error(f"Error calculating S&P correlation: {str(e)}")
+        data['sp_correlation'] = 0.5
+    
+    # Macro: US Inflation
+    try:
+        inf_url = "https://www.usinflationcalculator.com/inflation/current-inflation-rates/"
+        response = requests.get(inf_url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        table = soup.find('table')
+        latest_row = table.find_all('tr')[-1]
+        cols = latest_row.find_all('td')
+        data['us_inflation'] = float(cols[-1].text.strip().replace('%', '')) or 3.0
+    except Exception as e:
+        logging.error(f"Error fetching inflation rate: {str(e)}")
+        data['us_inflation'] = 3.0
+    
+    # Macro: Fed Interest Rate
+    try:
+        fed_url = "https://www.federalreserve.gov/releases/h15/"
+        response = requests.get(fed_url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        table = soup.find('table', id='h15table')
+        fed_rate = float(table.find_all('tr')[-1].find_all('td')[-1].text.strip())
+        data['fed_rate'] = fed_rate or 5.0
+    except Exception as e:
+        logging.error(f"Error fetching Fed rate: {str(e)}")
+        data['fed_rate'] = 5.0
+    
+    # Technical
+    try:
+        hist = yf.download('BTC-USD', period='1y')['Close']
+        data['50_day_ma'] = hist.rolling(50).mean().iloc[-1] if not hist.empty else data['current_price'] * 0.95
+        data['200_day_ma'] = hist.rolling(200).mean().iloc[-1] if not hist.empty else data['current_price'] * 0.9
+        delta = hist.diff(1)
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / loss
+        data['rsi'] = 100 - 100 / (1 + rs).iloc[-1] if not rs.empty else 50.0
+    except Exception as e:
+        logging.error(f"Error calculating technical indicators: {str(e)}")
+        data['50_day_ma'] = data['current_price'] * 0.95
+        data['200_day_ma'] = data['current_price'] * 0.9
+        data['rsi'] = 50.0
+    
+    # Defaults
+    data['beta'] = 1.5
+    data['desired_return'] = 15.0
+    data['margin_of_safety'] = 25.0
+    data['monte_carlo_runs'] = 1000
+    data['volatility_adj'] = 30.0
+    data['growth_adj'] = 20.0
+    data['s2f_intercept'] = 14.6
+    data['s2f_slope'] = 0.05
+    data['metcalfe_coeff'] = 0.0001
+    data['block_reward'] = 6.25
+    data['blocks_per_day'] = 144
+    
+    return data
 
-@st.cache_data(ttl=3600)
-def get_sp500_tickers():
+@st.cache_data(ttl=86400)
+@retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
+def fetch_history(period='5y'):
     """
-    Fetch S&P 500 tickers, sectors, and names from Wikipedia.
-    Returns a DataFrame with Symbol, Security (name), and GICS Sector.
+    Fetch historical price and on-chain data for Bitcoin, including hash rate MAs for Hash Ribbons.
     """
     try:
-        url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            raise ValueError(f"HTTP {response.status_code}: Unable to fetch Wikipedia page.")
-        if not response.text:
-            raise ValueError("Empty response from Wikipedia.")
+        df = yf.download('BTC-USD', period=period)
+        for metric in ['n-unique-addresses', 'estimated-transaction-volume-usd', 'mvrv', 'sopr', 'puell_multiple', 'hash-rate']:
+            try:
+                url = f"https://api.blockchain.info/charts/{metric}?format=json&timespan={period}"
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+                response = requests.get(url, headers=headers).json()
+                values = pd.DataFrame(response['values'])
+                values['x'] = pd.to_datetime(values['x'], unit='s')
+                values.set_index('x', inplace=True)
+                df[metric] = values['y'].reindex(df.index, method='ffill')
+            except Exception as e:
+                logging.error(f"Error fetching historical {metric}: {str(e)}")
+                df[metric] = 0.0
         
-        soup = BeautifulSoup(response.text, 'html.parser')
-        table = soup.find('table', {'id': 'constituents'})
-        
-        if table is None:
-            raise ValueError("Could not find the constituents table on Wikipedia page.")
-        
-        tickers = []
-        names = []
-        sectors = []
-        
-        for row in table.find_all('tr')[1:]:
-            cols = row.find_all('td')
-            if len(cols) >= 4:
-                ticker = cols[0].text.strip().replace('.', '-')
-                name = cols[1].text.strip()
-                sector = cols[3].text.strip()
-                tickers.append(ticker)
-                names.append(name)
-                sectors.append(sector)
-        
-        df = pd.DataFrame({
-            'Symbol': tickers,
-            'Security': names,
-            'GICS Sector': sectors
-        })
-        
-        if df.empty:
-            raise ValueError("No data extracted from Wikipedia table.")
+        # Add Hash Ribbons MAs
+        if 'hash-rate' in df.columns and not df['hash-rate'].isna().all():
+            df['hash_rate_30d'] = df['hash-rate'].rolling(30).mean()
+            df['hash_rate_60d'] = df['hash-rate'].rolling(60).mean()
+        else:
+            df['hash_rate_30d'] = 0.0
+            df['hash_rate_60d'] = 0.0
         
         return df
-    
     except Exception as e:
-        st.error(f"Error fetching S&P 500 list: {str(e)}. Using fallback list.")
-        return pd.DataFrame({
-            'Symbol': ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B', 'JPM', 'V',
-                       'WMT', 'UNH', 'MA', 'PG', 'HD', 'DIS', 'KO', 'PEP', 'INTC', 'CSCO'],
-            'Security': ['Apple Inc.', 'Microsoft Corporation', 'Alphabet Inc. Class A', 'Amazon.com Inc.',
-                         'Tesla Inc.', 'Meta Platforms Inc. Class A', 'NVIDIA Corporation',
-                         'Berkshire Hathaway Inc. Class B', 'JPMorgan Chase & Co.', 'Visa Inc.',
-                         'Walmart Inc.', 'UnitedHealth Group Incorporated', 'Mastercard Incorporated',
-                         'Procter & Gamble Company', 'Home Depot Inc.', 'Walt Disney Company',
-                         'Coca-Cola Company', 'PepsiCo Inc.', 'Intel Corporation', 'Cisco Systems Inc.'],
-            'GICS Sector': ['Information Technology', 'Information Technology', 'Communication Services',
-                            'Consumer Discretionary', 'Consumer Discretionary', 'Communication Services',
-                            'Information Technology', 'Financials', 'Financials', 'Information Technology',
-                            'Consumer Staples', 'Health Care', 'Information Technology', 'Consumer Staples',
-                            'Consumer Discretionary', 'Communication Services', 'Consumer Staples',
-                            'Consumer Staples', 'Information Technology', 'Information Technology']
-        })
-
-@st.cache_data(ttl=3600)
-def fetch_fundamental_data(ticker):
-    """
-    Fetch historical fundamental data using yfinance.
-    Returns a dict with DataFrames for income, balance, cashflow, dividends, and history.
-    """
-    try:
-        ticker = ticker.replace('.', '-')
-        stock = yf.Ticker(ticker)
-        income = stock.quarterly_financials.T
-        balance = stock.quarterly_balance_sheet.T
-        cashflow = stock.quarterly_cashflow.T
-        dividends = stock.dividends
-        history = stock.history(period="10y")
-        
-        for df in [income, balance, cashflow]:
-            if not df.empty:
-                df.index = pd.to_datetime(df.index)
-        
-        return {
-            'income': income,
-            'balance': balance,
-            'cashflow': cashflow,
-            'dividends': dividends,
-            'history': history
-        }
-    
-    except Exception as e:
-        st.error(f"Error fetching fundamental data for {ticker}: {str(e)}.")
-        return {
-            'income': pd.DataFrame(),
-            'balance': pd.DataFrame(),
-            'cashflow': pd.DataFrame(),
-            'dividends': pd.Series(),
-            'history': pd.DataFrame()
-        }
+        logging.error(f"Error fetching historical data: {str(e)}")
+        st.warning("Unable to fetch historical data.")
+        return pd.DataFrame()
