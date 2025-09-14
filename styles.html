@@ -1,0 +1,154 @@
+<style>
+/* General page styling */
+body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+}
+
+/* Title styling */
+h1, h2, h3 {
+    color: #333;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+/* Container for main content */
+.stApp {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Sidebar styling */
+.css-1lcbmhc {
+    background-color: #ffffff;
+    border-right: 1px solid #e0e0e0;
+    padding: 20px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+/* Button styling */
+.stButton>button {
+    background-color: #d32f2f;
+    color: white;
+    border-radius: 5px;
+    padding: 8px 16px;
+    border: none;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+.stButton>button:hover {
+    background-color: #b71c1c;
+}
+
+/* Tab styling (red headers) */
+.stTabs [data-baseweb="tab-list"] {
+    display: flex !important;
+    flex-direction: row !important;
+    padding: 0px !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    background-color: #f0f2f6 !important;
+    border: 1px solid #e0e0e0 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    margin-bottom: 20px;
+}
+.stTabs [data-baseweb="tab"] {
+    height: 40px !important;
+    border: none !important;
+    color: #d32f2f !important;
+    font-weight: 600 !important;
+    flex: 1 !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 0 12px !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    background-color: transparent !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+    color: #b71c1c !important;
+    background-color: #ffebee !important;
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    color: #d32f2f !important;
+    background-color: #fff !important;
+    box-shadow: inset 0 -2px 0 #d32f2f !important;
+}
+
+/* Input fields */
+.stTextInput input, .stNumberInput input, .stSelectbox select {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 8px;
+}
+
+/* DataFrame styling */
+.stDataFrame {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+/* Expander styling */
+.stExpander {
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    margin-bottom: 10px;
+}
+
+/* Plotly chart container */
+.plotly-chart {
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+/* Download button */
+.stDownloadButton>button {
+    background-color: #d32f2f;
+    color: white;
+    border-radius: 5px;
+    padding: 8px 16px;
+    border: none;
+    font-weight: 500;
+}
+.stDownloadButton>button:hover {
+    background-color: #b71c1c;
+}
+
+/* Metric styling */
+.stMetric {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .stApp {
+        padding: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-size: 14px;
+        padding: 0 8px;
+    }
+    .css-1lcbmhc {
+        padding: 10px;
+    }
+}
+
+/* Prevent code blocks from displaying */
+code, pre {
+    display: none !important;
+}
+</style>
