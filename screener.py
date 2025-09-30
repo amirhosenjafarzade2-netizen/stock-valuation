@@ -7,26 +7,34 @@ from valuation_models import calculate_valuation
 from utils import validate_inputs
 
 async def fetch_stock_data_async(ticker, session):
-    """Async wrapper for fetch_stock_data."""
+    """Async wrapper for fetch_stock_data with enhanced error handling."""
     try:
         return ticker, await asyncio.to_thread(fetch_stock_data, ticker)
     except Exception as e:
-        st.warning(f"Skipping {ticker}: {str(e)}")
+        st.warning(f"Failed to fetch data for {ticker}: {str(e)}")
         return ticker, None
 
-async def run_screener_async(model, min_undervaluation=0.0, selected_sectors=None):
+async def run_screener_async(model, min_undervaluation=0.0, selected_sectors=None, max_stocks=500):
     """
     Screen S&P 500 stocks asynchronously using the specified valuation model.
+    Args:
+        model (str): Valuation model to use.
+        min_undervaluation (float): Minimum undervaluation percentage threshold.
+        selected_sectors (list): List of sectors to filter, or None for all.
+        max_stocks (int): Maximum number of stocks to process (default 500).
+    Returns:
+        pd.DataFrame: Screener results with ticker, sector, undervaluation, etc.
     """
     sp500_data = get_sp500_tickers()
     
     if selected_sectors:
         sp500_data = sp500_data[sp500_data['GICS Sector'].isin(selected_sectors)]
     
+    sp500_data = sp500_data.head(max_stocks)  # NEW: Limit processing to avoid overload
     results = []
     progress_bar = st.progress(0)
     total_stocks = len(sp500_data)
-    batch_size = 10  # NEW: Process in batches
+    batch_size = 10  # Process in batches to avoid API throttling
     
     async with aiohttp.ClientSession() as session:
         for i in range(0, total_stocks, batch_size):
@@ -35,7 +43,7 @@ async def run_screener_async(model, min_undervaluation=0.0, selected_sectors=Non
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
             
             for idx, (ticker, data) in enumerate(batch_results):
-                if data is None:
+                if data is None or 'error' in data:
                     continue
                 try:
                     data['model'] = model
@@ -50,8 +58,9 @@ async def run_screener_async(model, min_undervaluation=0.0, selected_sectors=Non
                                 'Ticker': ticker,
                                 'Name': row['Security'],
                                 'Undervaluation %': undervaluation,
-                                'Market Cap (B)': data.get('market_cap', 0) / 1e9 if data.get('market_cap') else None,
-                                'Intrinsic Value': valuation_results.get('intrinsic_value', None)
+                                'Market Cap (B)': data.get('market_cap', None) / 1e9 if data.get('market_cap') else None,
+                                'Intrinsic Value': valuation_results.get('intrinsic_value', None),
+                                'Beta': data.get('beta', None)  # NEW: Added for portfolio analysis
                             })
                 except Exception as e:
                     st.warning(f"Error processing {ticker}: {str(e)}")
@@ -59,7 +68,7 @@ async def run_screener_async(model, min_undervaluation=0.0, selected_sectors=Non
     
     results_df = pd.DataFrame(results)
     if not results_df.empty:
-        results_df = results_df.sort_values(by='Market Cap (B)', ascending=False, na_position='last')
+        results_df = results_df.sort_values(by='Undervaluation %', ascending=False, na_position='last')
     
     return results_df
 
@@ -83,7 +92,7 @@ def display_screener():
     
     min_undervaluation = st.number_input(
         "Minimum Undervaluation %",
-        min_value=0.0, max_value=100.0, value=0.0,
+        min_value=-100.0, max_value=100.0, value=0.0, step=0.1,  # NEW: Allow negative undervaluation
         help="Show only stocks with undervaluation above this threshold."
     )
     
@@ -96,31 +105,61 @@ def display_screener():
     
     sort_by = st.selectbox(
         "Sort By",
-        ["Market Cap (Descending)", "Undervaluation % (Descending)"],
-        help="Sort results by market cap or undervaluation percentage."
+        ["Undervaluation % (Descending)", "Market Cap (Descending)", "Beta (Ascending)"],
+        help="Sort results by undervaluation, market cap, or beta."
+    )
+    
+    max_stocks = st.number_input(
+        "Max Stocks to Screen",
+        min_value=1, max_value=500, value=500, step=10,
+        help="Limit the number of stocks to process to manage performance."
     )
     
     if st.button("Run Screener"):
         with st.spinner("Screening S&P 500 stocks..."):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            results_df = loop.run_until_complete(run_screener_async(model, min_undervaluation, selected_sectors))
-            loop.close()
-            
-            if results_df.empty:
-                st.info("No undervalued stocks found with the given criteria.")
-            else:
-                if sort_by == "Undervaluation % (Descending)":
-                    results_df = results_df.sort_values(by='Undervaluation %', ascending=False, na_position='last')
-                st.dataframe(results_df, use_container_width=True)
-                
-                csv = results_df.to_csv(index=False)
-                st.download_button(
-                    label="Download Screener Results",
-                    data=csv,
-                    file_name="sp500_screener_results.csv",
-                    mime="text/csv"
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                results_df = loop.run_until_complete(
+                    run_screener_async(model, min_undervaluation, selected_sectors, max_stocks)
                 )
+                loop.close()
+                
+                if results_df.empty:
+                    st.info("No undervalued stocks found with the given criteria.")
+                else:
+                    if sort_by == "Market Cap (Descending)":
+                        results_df = results_df.sort_values(by='Market Cap (B)', ascending=False, na_position='last')
+                    elif sort_by == "Beta (Ascending)":
+                        results_df = results_df.sort_values(by='Beta', ascending=True, na_position='last')
+                    st.dataframe(results_df, use_container_width=True)
+                    
+                    csv = results_df.to_csv(index=False)
+                    st.download_button(
+                        label="Download Screener Results",
+                        data=csv,
+                        file_name="sp500_screener_results.csv",
+                        mime="text/csv"
+                    )
+            except Exception as e:
+                st.error(f"Error running screener: {str(e)}")
+    
+    # NEW: Add to portfolio from screener
+    if not st.session_state.get('portfolio', pd.DataFrame()).empty and not results_df.empty:
+        st.subheader("Add to Portfolio")
+        selected_tickers = st.multiselect("Select Tickers to Add to Portfolio", results_df['Ticker'].tolist())
+        if st.button("Add Selected to Portfolio"):
+            for ticker in selected_tickers:
+                row = results_df[results_df['Ticker'] == ticker].iloc[0]
+                new_row = pd.DataFrame([{
+                    'Ticker': ticker,
+                    'Intrinsic Value': row['Intrinsic Value'],
+                    'Undervaluation %': row['Undervaluation %'],
+                    'Verdict': 'Buy' if row['Undervaluation %'] > 0 else 'Hold' if row['Undervaluation %'] > -20 else 'Sell',
+                    'Beta': row['Beta']
+                }]).astype(st.session_state.portfolio.dtypes)
+                st.session_state.portfolio = pd.concat([st.session_state.portfolio, new_row], ignore_index=True)
+            st.success(f"Added {len(selected_tickers)} stocks to portfolio.")
 
 if __name__ == "__main__":
     display_screener()
