@@ -8,3 +8,4 @@ retrying>=1.3.3  # For retry logic in data_fetch.py
 aiohttp>=3.8.4   # For async fetching in screener.py
 reportlab>=4.0.0 # For PDF generation in utils.py
 numpy>=1.24.0
+tenacity>=8.2.0
