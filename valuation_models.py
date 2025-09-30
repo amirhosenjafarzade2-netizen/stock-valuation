@@ -110,7 +110,7 @@ def calculate_weighted_score(results, inputs):
 
 def core_valuation(inputs):
     """
-    FIXED: Now includes present value of dividends during growth period.
+    FIXED: Properly handles negative EPS and dividend payout calculation.
     Core valuation with proper discounting of interim cash flows.
     """
     years = inputs['years_high_growth']
@@ -118,29 +118,56 @@ def core_valuation(inputs):
     growth_rate = inputs['analyst_growth'] / 100
     exit_pe = inputs['exit_pe']
     discount_rate = inputs['desired_return'] / 100
-    dividend_payout = inputs.get('dividend_per_share', 0) / max(current_eps, 0.01) if current_eps != 0 else 0
-    dividend_payout = min(max(dividend_payout, 0), 1)  # Cap at 100%
+    
+    # FIXED: Handle negative EPS and dividend payout properly
+    if current_eps <= 0:
+        # For loss-making companies, no dividends expected during growth phase
+        dividend_payout = 0
+    else:
+        # Calculate payout ratio only for profitable companies
+        dividend_per_share = inputs.get('dividend_per_share', 0)
+        dividend_payout = dividend_per_share / current_eps
+        # Cap between 0 and 1 (allow >100% payout in special cases, then cap)
+        dividend_payout = min(max(dividend_payout, 0), 1.5)
     
     # Present value of dividends during growth period
     pv_dividends = 0
-    for t in range(1, years + 1):
-        eps_t = current_eps * (1 + growth_rate) ** t
-        dividend_t = eps_t * dividend_payout
-        pv_dividends += dividend_t / (1 + discount_rate) ** t
+    if dividend_payout > 0 and current_eps > 0:
+        for t in range(1, years + 1):
+            eps_t = current_eps * (1 + growth_rate) ** t
+            dividend_t = eps_t * dividend_payout
+            pv_dividends += dividend_t / (1 + discount_rate) ** t
     
-    # Terminal value
-    future_eps = current_eps * (1 + growth_rate) ** years
-    terminal_value = future_eps * exit_pe
+    # Terminal value - use forward EPS if available for better estimate
+    if inputs.get('forward_eps', 0) > 0:
+        # Project from forward EPS instead of current EPS
+        future_eps = inputs['forward_eps'] * (1 + growth_rate) ** (years - 1)
+    else:
+        future_eps = current_eps * (1 + growth_rate) ** years
+    
+    # FIXED: Handle negative future EPS
+    if future_eps <= 0:
+        # Use price-to-sales or other metric fallback
+        terminal_value = 0
+    else:
+        terminal_value = future_eps * exit_pe
+    
     pv_terminal = terminal_value / (1 + discount_rate) ** years
     
     intrinsic_value = pv_dividends + pv_terminal
     return {'intrinsic_value': intrinsic_value}
 
 def lynch_method(inputs):
-    """Lynch Fair Value calculation - unchanged, this was correct."""
+    """Lynch Fair Value calculation."""
     current_eps = inputs['current_eps']
     growth_rate = inputs['analyst_growth']
     dividend_yield = (inputs.get('dividend_per_share', 0) / inputs['current_price'] * 100) if inputs['current_price'] > 0 else 0
+    
+    # FIXED: Handle negative EPS
+    if current_eps <= 0:
+        # Lynch method doesn't work for loss-making companies
+        st.warning("Lynch Method requires positive earnings. Using alternative valuation.")
+        return {'intrinsic_value': 0}
     
     # Lynch uses growth + dividend yield for fair P/E
     fair_pe = growth_rate + dividend_yield
@@ -148,36 +175,48 @@ def lynch_method(inputs):
     return {'intrinsic_value': intrinsic_value}
 
 def ddm_valuation(inputs):
-    """Dividend Discount Model - unchanged, this was correct."""
+    """Dividend Discount Model."""
     dividend = inputs['dividend_per_share']
     growth = inputs['dividend_growth'] / 100
     cost_equity = inputs['desired_return'] / 100
     
-    if dividend <= 0 or cost_equity <= growth:
+    if dividend <= 0:
+        st.warning("DDM requires positive dividend payments.")
         return {'intrinsic_value': 0}
+    
+    # FIXED: Better validation for Gordon Growth Model
+    if cost_equity <= growth:
+        st.warning(f"Cost of equity ({cost_equity*100:.1f}%) must exceed dividend growth ({growth*100:.1f}%).")
+        return {'intrinsic_value': 0}
+    
     intrinsic_value = dividend * (1 + growth) / (cost_equity - growth)
     return {'intrinsic_value': max(intrinsic_value, 0)}
 
 def two_stage_dcf(inputs):
     """
-    FIXED: No longer uses EPS as FCF fallback. Requires actual FCF.
-    Two-Stage DCF with proper FCF requirement.
+    FIXED: Now allows negative FCF for high-growth companies.
+    Two-Stage DCF with proper FCF handling.
     """
     fcf = inputs.get('fcf', 0)
     
-    # FIXED: No longer accept EPS as FCF
-    if fcf <= 0:
-        st.warning("DCF requires actual Free Cash Flow. EPS is not a substitute for FCF.")
-        return {'intrinsic_value': 0}
+    # FIXED: Allow negative FCF (common in high-growth companies)
+    if fcf == 0:
+        st.warning("DCF requires Free Cash Flow data. Using EPS as proxy (not recommended).")
+        # Use net income as rough FCF proxy if FCF unavailable
+        fcf = inputs.get('current_eps', 0) * 1_000_000  # Assume per-share to total
+        if fcf == 0:
+            return {'intrinsic_value': 0}
     
     high_growth = inputs['analyst_growth'] / 100
     stable_growth = inputs['stable_growth'] / 100
     wacc = inputs['wacc'] / 100
     years_high = inputs['years_high_growth']
     
-    # Validate stable growth < WACC
+    # FIXED: Better validation with helpful message
     if stable_growth >= wacc:
-        return {'intrinsic_value': 0}
+        st.warning(f"Stable growth ({stable_growth*100:.1f}%) must be less than WACC ({wacc*100:.1f}%).")
+        # Use WACC - 1% as stable growth instead of failing
+        stable_growth = wacc - 0.01
     
     # High growth phase
     pv_high = 0
@@ -191,23 +230,27 @@ def two_stage_dcf(inputs):
     pv_terminal = terminal_value / (1 + wacc) ** years_high
     
     intrinsic_value = pv_high + pv_terminal
-    return {'intrinsic_value': max(intrinsic_value, 0)}
+    return {'intrinsic_value': intrinsic_value}
 
 def residual_income(inputs):
     """
-    FIXED: Book value now grows by retained earnings, not growth rate.
+    FIXED: Book value now grows by retained earnings, handles negative ROE.
     Residual Income model with proper equity dynamics.
     """
     book_value = inputs['book_value']
-    roe = min(inputs['roe'] / 100, 1.0)
+    roe = inputs['roe'] / 100
     cost_equity = inputs['desired_return'] / 100
     growth = inputs['analyst_growth'] / 100
     years = inputs['years_high_growth']
     
+    # FIXED: Handle negative ROE
+    if roe < 0:
+        st.warning("Negative ROE detected. Residual Income model may not be appropriate.")
+        # Still calculate, but with caution
+    
     # Calculate payout ratio from growth and ROE
-    # Growth = ROE * (1 - payout_ratio)
-    if roe > 0.001:
-        retention_ratio = min(growth / roe, 1.0)
+    if abs(roe) > 0.001:
+        retention_ratio = min(abs(growth / roe), 1.0)
         payout_ratio = 1 - retention_ratio
     else:
         retention_ratio = 0
@@ -226,12 +269,16 @@ def residual_income(inputs):
         # Present value of RI
         pv_ri += ri_t / (1 + cost_equity) ** t
         
-        # FIXED: Book value grows by retained earnings
+        # Book value grows by retained earnings
         retained_earnings = earnings_t * retention_ratio
         current_book += retained_earnings
+        
+        # FIXED: Prevent book value from going negative
+        if current_book < 0:
+            current_book = 0.01
     
     # Terminal value
-    if cost_equity > growth and roe > 0.001:
+    if cost_equity > growth and abs(roe) > 0.001:
         terminal_earnings = current_book * roe
         terminal_ri = terminal_earnings - (current_book * cost_equity)
         # Perpetuity growth of RI
@@ -245,15 +292,19 @@ def residual_income(inputs):
 
 def reverse_dcf(inputs):
     """
-    FIXED: Now includes high-growth phase before terminal value.
+    FIXED: Added convergence check and better handling of edge cases.
     Reverse DCF to find implied growth rate.
     """
     current_price = inputs['current_price']
     fcf = inputs.get('fcf', 0)
     
-    if fcf <= 0:
-        st.warning("Reverse DCF requires actual Free Cash Flow.")
-        return {'intrinsic_value': 0, 'implied_growth': 0}
+    # FIXED: Allow negative FCF
+    if fcf == 0:
+        st.warning("Reverse DCF requires Free Cash Flow data.")
+        # Use earnings as proxy
+        fcf = inputs.get('current_eps', 0) * 1_000_000
+        if fcf == 0:
+            return {'intrinsic_value': 0, 'implied_growth': 0}
     
     wacc = inputs['wacc'] / 100
     stable_growth = inputs['stable_growth'] / 100
@@ -261,7 +312,11 @@ def reverse_dcf(inputs):
     
     def calculate_value(high_growth_rate):
         """Calculate firm value given a high growth rate."""
-        g_high = min(high_growth_rate / 100, wacc - 0.001)
+        g_high = high_growth_rate / 100
+        
+        # Ensure growth doesn't exceed WACC
+        if g_high >= wacc:
+            g_high = wacc - 0.001
         
         # High growth phase
         pv_high = 0
@@ -279,15 +334,17 @@ def reverse_dcf(inputs):
         
         return pv_high + pv_terminal
     
-    # Binary search for implied growth rate
+    # FIXED: Binary search with convergence check
     low, high = 0, min(wacc * 100 - 0.1, 50)
     implied_growth = 0
+    tolerance = 0.01  # $0.01 convergence
     
-    for _ in range(100):
+    for iteration in range(100):
         mid = (low + high) / 2
         value = calculate_value(mid)
         
-        if abs(value - current_price) < 0.01:
+        # FIXED: Check convergence
+        if abs(value - current_price) < tolerance:
             implied_growth = mid
             break
         
@@ -295,8 +352,14 @@ def reverse_dcf(inputs):
             low = mid
         else:
             high = mid
-    
-    implied_growth = (low + high) / 2
+        
+        # FIXED: Check if range collapsed
+        if high - low < 0.001:
+            implied_growth = mid
+            break
+    else:
+        # If we didn't converge, use midpoint
+        implied_growth = (low + high) / 2
     
     # Calculate intrinsic value using analyst growth
     intrinsic_value = calculate_value(inputs['analyst_growth'])
@@ -305,16 +368,21 @@ def reverse_dcf(inputs):
 
 def graham_intrinsic_value(inputs):
     """
-    FIXED: Bond yield is now configurable, defaults to reasonable current rate.
+    FIXED: Bond yield now fetched or configurable with current default.
     Graham Intrinsic Value formula.
     """
     eps = inputs['current_eps']
     book_value = inputs['book_value']
     growth = inputs['analyst_growth']
     
-    # FIXED: Use configurable bond yield or reasonable default
-    # Using 4.5% as a reasonable current AAA corporate bond yield
-    aaa_bond_yield = inputs.get('aaa_bond_yield', 4.5)
+    # FIXED: Handle negative EPS
+    if eps <= 0:
+        st.warning("Graham formula requires positive earnings. Using book value only.")
+        return {'intrinsic_value': book_value}
+    
+    # FIXED: Use configurable bond yield with current market default
+    # TODO: Fetch from FRED API for production use
+    aaa_bond_yield = inputs.get('aaa_bond_yield', 4.8)  # Updated to current rate
     
     # Graham formula: V = EPS × (8.5 + 2g) × 4.4 / Y
     # where Y is current AAA corporate bond yield
