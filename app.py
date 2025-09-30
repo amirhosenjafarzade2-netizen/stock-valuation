@@ -34,46 +34,46 @@ try:
         st.markdown(f.read(), unsafe_allow_html=True)
 except FileNotFoundError:
     st.warning("styles.html not found. Using default styling.")
-
-# Custom CSS for red tab headers
-st.markdown("""
-<style>
-    .stTabs [data-baseweb="tab-list"] {
-        display: flex !important;
-        flex-direction: row !important;
-        padding: 0px !important;
-        border-radius: 10px !important;
-        overflow: hidden !important;
-        background-color: #f0f2f6 !important;
-        border: 1px solid #e0e0e0 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 40px !important;
-        border: none !important;
-        color: #d32f2f !important;
-        font-weight: 600 !important;
-        flex: 1 !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        padding: 0 12px !important;
-        white-space: nowrap !important;
-        cursor: pointer !important;
-        transition: all 0.3s ease !important;
-        background-color: transparent !important;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #b71c1c !important;
-        background-color: #ffebee !important;
-    }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        color: #d32f2f !important;
-        background-color: #fff !important;
-        box-shadow: inset 0 -2px 0 #d32f2f !important;
-    }
-</style>
-""", unsafe_allow_html=True)
+    # Fallback inline CSS
+    st.markdown("""
+    <style>
+        .stTabs [data-baseweb="tab-list"] {
+            display: flex !important;
+            flex-direction: row !important;
+            padding: 0px !important;
+            border-radius: 10px !important;
+            overflow: hidden !important;
+            background-color: #f0f2f6 !important;
+            border: 1px solid #e0e0e0 !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+            margin-bottom: 20px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 40px !important;
+            border: none !important;
+            color: #d32f2f !important;
+            font-weight: 600 !important;
+            flex: 1 !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            padding: 0 12px !important;
+            white-space: nowrap !important;
+            cursor: pointer !important;
+            transition: all 0.3s ease !important;
+            background-color: transparent !important;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
+            color: #b71c1c !important;
+            background-color: #ffebee !important;
+        }
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {
+            color: #d32f2f !important;
+            background-color: #fff !important;
+            box-shadow: inset 0 -2px 0 #d32f2f !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 # Main UI with title and tabs
 st.title("Stock Valuation Dashboard")
