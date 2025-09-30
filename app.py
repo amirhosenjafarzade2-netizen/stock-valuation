@@ -31,7 +31,7 @@ if 'results' not in st.session_state:
 # Load custom CSS
 try:
     with open("styles.html") as f:
-        st.html(f.read())
+        st.markdown(f.read(), unsafe_allow_html=True)
 except FileNotFoundError:
     st.warning("styles.html not found. Using default styling.")
 
@@ -113,7 +113,7 @@ with tab1:
         current_eps = st.number_input("Current EPS", value=st.session_state.data.get('current_eps', 0.0))
         forward_eps = st.number_input("Forward EPS", value=st.session_state.data.get('forward_eps', 0.0))
         dividend_per_share = st.number_input("Current Dividend Per Share", min_value=0.0, value=st.session_state.data.get('dividend_per_share', 0.0))
-        analyst_growth = st.number_input("Analyst Growth Rate %", min_value=-50.0, max_value=50.0, value=st.session_state.data.get('analyst_growth', 5.0))  # Allowed negative
+        analyst_growth = st.number_input("Analyst Growth Rate %", min_value=-50.0, max_value=50.0, value=st.session_state.data.get('analyst_growth', 5.0))
         wacc = st.number_input("WACC %", min_value=0.0, max_value=50.0, value=st.session_state.data.get('wacc', 8.0))
         stable_growth = st.number_input("Stable Growth Rate %", min_value=0.0, max_value=50.0, value=st.session_state.data.get('stable_growth', 3.0))
         years_high_growth = st.number_input("Years of High Growth", min_value=3, max_value=10, value=st.session_state.data.get('years_high_growth', 5))
@@ -129,7 +129,7 @@ with tab1:
         fcf = st.number_input("Free Cash Flow", value=st.session_state.data.get('fcf', 0.0))
         beta = st.number_input("Beta", min_value=0.0, max_value=5.0, value=st.session_state.data.get('beta', 1.0))
         book_value = st.number_input("Book Value Per Share", min_value=0.0, value=st.session_state.data.get('book_value', 0.0))
-        roe = st.number_input("ROE %", min_value=-100.0, max_value=100.0, value=st.session_state.data.get('roe', 0.0))  # Allowed negative
+        roe = st.number_input("ROE %", min_value=-100.0, max_value=100.0, value=st.session_state.data.get('roe', 0.0))
         monte_carlo_runs = st.number_input("Monte Carlo Runs", min_value=100, max_value=10000, value=st.session_state.data.get('monte_carlo_runs', 1000))
         growth_adj = st.number_input("Growth Adjustment %", min_value=0.0, max_value=50.0, value=st.session_state.data.get('growth_adj', 10.0))
         wacc_adj = st.number_input("WACC Adjustment %", min_value=0.0, max_value=50.0, value=st.session_state.data.get('wacc_adj', 10.0))
