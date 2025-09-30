@@ -34,7 +34,6 @@ try:
         st.markdown(f.read(), unsafe_allow_html=True)
 except FileNotFoundError:
     st.warning("styles.html not found. Using default styling.")
-    # Fallback inline CSS
     st.markdown("""
     <style>
         .stTabs [data-baseweb="tab-list"] {
@@ -275,30 +274,35 @@ with tab1:
             ]
         })
         st.dataframe(scenarios, use_container_width=True)
-
-        # Sensitivity Analysis
-st.header("Sensitivity Analysis (Heatmap)")
-if results.get('intrinsic_value') and wacc is not None and analyst_growth is not None and st.session_state.data:
-    heatmap = plot_heatmap(st.session_state.data, results.get('intrinsic_value'), wacc, analyst_growth)
-    st.plotly_chart(heatmap, use_container_width=True)
-else:
-    st.warning("Cannot generate heatmap: Missing intrinsic value, WACC, growth rate, or input data.")
-
+        
+        st.header("Sensitivity Analysis (Heatmap)")
+        if results.get('intrinsic_value') and wacc is not None and analyst_growth is not None and st.session_state.data:
+            heatmap = plot_heatmap(st.session_state.data, results.get('intrinsic_value'), wacc, analyst_growth)
+            st.plotly_chart(heatmap, use_container_width=True)
+        else:
+            st.warning("Cannot generate heatmap: Missing intrinsic value, WACC, growth rate, or input data.")
+        
         st.header("Monte Carlo Simulation")
+        inputs = st.session_state.data.copy()
         mc_results = run_monte_carlo(inputs, monte_carlo_runs, growth_adj, wacc_adj)
         st.metric("Average Intrinsic Value", f"${mc_results.get('avg_value', 'N/A'):.2f}" if mc_results.get('avg_value') else "N/A")
         st.metric("Std Dev", f"${mc_results.get('std_dev', 'N/A'):.2f}" if mc_results.get('std_dev') else "N/A")
         st.metric("Probability Undervalued (> Current Price)", f"{mc_results.get('prob_undervalued', 'N/A'):.2f}%" if mc_results.get('prob_undervalued') else "N/A")
         mc_plot = plot_monte_carlo(mc_results)
         st.plotly_chart(mc_plot, use_container_width=True)
-
+        
         st.header("Model Comparison")
         model_comp = pd.DataFrame({
             'Model': ['Core', 'Lynch', 'DCF', 'DDM', 'Two-Stage DCF', 'RI', 'Reverse DCF', 'Graham'],
             'Intrinsic Value': [
-                results.get('core_value', 'N/A'), results.get('lynch_value', 'N/A'), results.get('dcf_value', 'N/A'),
-                results.get('ddm_value', 'N/A'), results.get('two_stage_dcf', 'N/A'), results.get('ri_value', 'N/A'),
-                results.get('reverse_dcf_value', 'N/A'), results.get('graham_value', 'N/A')
+                results.get('core_value', 'N/A'),
+                results.get('lynch_value', 'N/A'),
+                results.get('dcf_value', 'N/A'),
+                results.get('ddm_value', 'N/A'),
+                results.get('two_stage_dcf', 'N/A'),
+                results.get('ri_value', 'N/A'),
+                results.get('reverse_dcf_value', 'N/A'),
+                results.get('graham_value', 'N/A')
             ]
         })
         comp_plot = plot_model_comparison(model_comp)
