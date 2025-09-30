@@ -276,9 +276,13 @@ with tab1:
         })
         st.dataframe(scenarios, use_container_width=True)
 
-        st.header("Sensitivity Analysis (Heatmap)")
-        heatmap = plot_heatmap(results.get('intrinsic_value'), wacc, analyst_growth)
-        st.plotly_chart(heatmap, use_container_width=True)
+        # Sensitivity Analysis
+st.header("Sensitivity Analysis (Heatmap)")
+if results.get('intrinsic_value') and wacc is not None and analyst_growth is not None and st.session_state.data:
+    heatmap = plot_heatmap(st.session_state.data, results.get('intrinsic_value'), wacc, analyst_growth)
+    st.plotly_chart(heatmap, use_container_width=True)
+else:
+    st.warning("Cannot generate heatmap: Missing intrinsic value, WACC, growth rate, or input data.")
 
         st.header("Monte Carlo Simulation")
         mc_results = run_monte_carlo(inputs, monte_carlo_runs, growth_adj, wacc_adj)
